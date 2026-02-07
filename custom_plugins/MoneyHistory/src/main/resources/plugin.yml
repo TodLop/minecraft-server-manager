@@ -1,0 +1,60 @@
+name: MoneyHistory
+version: ${project.version}
+main: dev.hjjang.moneyhistory.MoneyHistoryPlugin
+api-version: '1.21'
+description: Track and query player balance changes with attribution
+author: hjjang
+website: https://hjjang.dev
+
+depend:
+  - Vault
+
+softdepend:
+  - Essentials
+  - PlayerAuctions
+
+commands:
+  moneyhistory:
+    description: View player balance history
+    usage: |
+      /<command> [player] [page] - View balance history
+      /<command> --source=<type> - Filter by source
+      /<command> --since=<time> - Filter by time
+      /<command> --min=<amount> - Filter by minimum delta
+      /<command> --max=<amount> - Filter by maximum delta
+      /<command> reload - Reload configuration
+      /<command> cleanup <days> - Delete old records
+      /<command> stats [player] - Show statistics
+    aliases: [mh, balancehistory]
+    permission: moneyhistory.view.self
+
+permissions:
+  moneyhistory.admin:
+    description: Access to all MoneyHistory commands
+    default: op
+    children:
+      moneyhistory.view.self: true
+      moneyhistory.view.others: true
+      moneyhistory.reload: true
+      moneyhistory.cleanup: true
+      moneyhistory.stats: true
+
+  moneyhistory.view.self:
+    description: View own balance history
+    default: true
+
+  moneyhistory.view.others:
+    description: View other players' balance history
+    default: op
+
+  moneyhistory.reload:
+    description: Reload plugin configuration
+    default: op
+
+  moneyhistory.cleanup:
+    description: Manually clean up old records
+    default: op
+
+  moneyhistory.stats:
+    description: View plugin statistics
+    default: op

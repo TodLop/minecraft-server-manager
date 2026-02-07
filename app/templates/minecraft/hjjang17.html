@@ -1,0 +1,600 @@
+<!-- DEMO PAGE: This is a demo Minecraft Wrapped page with fictional player statistics.
+     Included as an example of the Wrapped feature's frontend implementation. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2025 Wrapped: hjjang17</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { background-color: #05000a; overflow-x: hidden; }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        #error-display { display: none; padding: 20px; background: #300; color: #f88; position: fixed; top: 0; left: 0; width: 100%; z-index: 9999; font-family: monospace; }
+        
+        /* Custom Utilities */
+        .text-shadow-glow { text-shadow: 0 0 15px currentColor; }
+    </style>
+</head>
+<body>
+    <div id="error-display"></div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+    {% raw %}
+        // ▲ Jinja2 충돌 방지 태그
+
+        // 에러 핸들러
+        window.onerror = function(msg, url, line, col, error) {
+            const display = document.getElementById('error-display');
+            display.style.display = 'block';
+            display.innerHTML += `<h3>⚠️ System Error</h3><p>${msg}</p><p>Line: ${line}</p>`;
+            return false;
+        };
+
+        try {
+            const { useState, useEffect, useRef } = React;
+            
+            if (!window.Motion) throw new Error("Framer Motion library failed to load.");
+            const { motion, useScroll, useTransform, useInView, AnimatePresence } = window.Motion;
+
+            // --- Icon Helper ---
+            const Icon = ({ name, ...props }) => {
+                const [iconNode, setIconNode] = useState(null);
+                useEffect(() => {
+                    if (window.lucide && window.lucide.icons[name]) {
+                        setIconNode(window.lucide.icons[name]);
+                    }
+                }, [name]);
+                if (!iconNode) return <span />;
+                return (
+                    <svg {...props} width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        {iconNode.map((child, idx) => {
+                            const [tag, attrs] = child;
+                            return React.createElement(tag, { ...attrs, key: idx });
+                        })}
+                    </svg>
+                );
+            };
+
+            // Icons for hjjang17
+            const Crown = (p) => <Icon name="Crown" {...p} />;
+            const Clock = (p) => <Icon name="Clock" {...p} />;
+            const CloudLightning = (p) => <Icon name="CloudLightning" {...p} />;
+            const Sword = (p) => <Icon name="Sword" {...p} />;
+            const Pickaxe = (p) => <Icon name="Pickaxe" {...p} />;
+            const Terminal = (p) => <Icon name="Terminal" {...p} />;
+            const Globe = (p) => <Icon name="Globe" {...p} />;
+            const Server = (p) => <Icon name="Server" {...p} />;
+            const Zap = (p) => <Icon name="Zap" {...p} />;
+            const Skull = (p) => <Icon name="Skull" {...p} />;
+            const Rocket = (p) => <Icon name="Rocket" {...p} />;
+            const Activity = (p) => <Icon name="Activity" {...p} />;
+            const Cpu = (p) => <Icon name="Cpu" {...p} />;
+            const Database = (p) => <Icon name="Database" {...p} />;
+            const Code = (p) => <Icon name="Code" {...p} />;
+            const Award = (p) => <Icon name="Award" {...p} />;
+
+            // --- Utilities ---
+
+            const Section = ({ children, className = "" }) => (
+                <section className={`min-h-screen flex flex-col justify-center items-center p-6 relative overflow-hidden ${className}`}>
+                    {children}
+                </section>
+            );
+
+            const AnimatedNumber = ({ value, suffix = "", prefix = "" }) => {
+                const ref = useRef(null);
+                const isInView = useInView(ref, { once: true });
+                return (
+                    <span ref={ref} className="tabular-nums">
+                    {prefix}
+                    {isInView ? <CountUp end={value} duration={2.5} /> : "0"}
+                    {suffix}
+                    </span>
+                );
+            };
+
+            const CountUp = ({ end, duration }) => {
+                const [count, setCount] = useState(0);
+                useEffect(() => {
+                    let startTimestamp = null;
+                    const step = (timestamp) => {
+                    if (!startTimestamp) startTimestamp = timestamp;
+                    const progress = Math.min((timestamp - startTimestamp) / (duration * 1000), 1);
+                    setCount(Math.floor(progress * end));
+                    if (progress < 1) {
+                        window.requestAnimationFrame(step);
+                    }
+                    };
+                    window.requestAnimationFrame(step);
+                }, [end, duration]);
+                return count.toLocaleString();
+            };
+
+            const FadeIn = ({ children, delay = 0, direction = 'up', className = "" }) => {
+                const y = direction === 'up' ? 50 : direction === 'down' ? -50 : 0;
+                return (
+                    <motion.div
+                    initial={{ opacity: 0, y, filter: "blur(10px)" }}
+                    whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                    viewport={{ once: true, margin: "-10%" }}
+                    transition={{ duration: 1, delay, ease: [0.22, 1, 0.36, 1] }} // Heavy easing
+                    className={className}
+                    >
+                    {children}
+                    </motion.div>
+                );
+            };
+
+            // Glitch Text Component for Admin Vibes
+            const GlitchText = ({ text }) => {
+                return (
+                    <div className="relative inline-block group">
+                    <span className="relative z-10">{text}</span>
+                    <span className="absolute top-0 left-0 -z-10 w-full h-full text-cyan-400 opacity-0 group-hover:opacity-70 group-hover:animate-pulse translate-x-[2px]">{text}</span>
+                    <span className="absolute top-0 left-0 -z-10 w-full h-full text-red-400 opacity-0 group-hover:opacity-70 group-hover:animate-pulse -translate-x-[2px]">{text}</span>
+                    </div>
+                );
+            };
+
+            // --- Main App ---
+
+            function App() {
+                const { scrollYProgress } = useScroll();
+                const bgY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
+
+                return (
+                    // THEME: Admin/God Mode (Deep Void Purple + Gold + Cyber Cyan)
+                    <div className="bg-[#05000a] text-white font-sans selection:bg-purple-500/30 selection:text-purple-100 overflow-x-hidden">
+                    
+                    {/* Global Background: The Universe/Void */}
+                    <motion.div 
+                        className="fixed inset-0 z-0 opacity-40 pointer-events-none" 
+                        style={{ 
+                        backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")',
+                        y: bgY
+                        }}
+                    />
+                    <div className="fixed inset-0 z-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-purple-900/20 via-[#0a0014] to-black pointer-events-none" />
+                    
+                    {/* Progress Bar (Gold for Authority) */}
+                    <motion.div 
+                        className="fixed top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-600 via-cyan-400 to-yellow-400 z-50 origin-left box-shadow-[0_0_20px_rgba(250,204,21,0.5)]"
+                        style={{ scaleX: scrollYProgress }}
+                    />
+
+                    {/* 1. INTRO HERO: ROOT ACCESS */}
+                    <Section className="border-b border-purple-900/30">
+                        <FadeIn>
+                        <div className="relative z-10 text-center">
+                            {/* Admin Badge */}
+                            <motion.div 
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ duration: 1.5, type: "spring" }}
+                            className="w-32 h-32 mx-auto mb-10 rounded-full border-2 border-yellow-500/50 flex items-center justify-center bg-purple-900/20 backdrop-blur-md shadow-[0_0_50px_rgba(168,85,247,0.4)] relative"
+                            >
+                            <div className="absolute inset-0 rounded-full border border-cyan-500/30 animate-[spin_10s_linear_infinite]" />
+                            <div className="absolute inset-2 rounded-full border border-purple-500/30 animate-[spin_15s_linear_infinite_reverse]" />
+                            <Terminal className="text-yellow-400 w-16 h-16" />
+                            </motion.div>
+                            
+                            <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 1 }}
+                            className="flex items-center justify-center gap-2 mb-4"
+                            >
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                            <h2 className="text-green-500 font-mono text-sm tracking-[0.3em] uppercase">Root Access: Authorized</h2>
+                            </motion.div>
+
+                            <h1 className="text-6xl md:text-9xl font-black tracking-tighter mb-6 leading-none">
+                            <span className="bg-clip-text text-transparent bg-gradient-to-b from-white via-purple-100 to-purple-900 block">SYSTEM</span>
+                            <span className="bg-clip-text text-transparent bg-gradient-to-b from-yellow-200 via-yellow-500 to-yellow-800 block mt-2 text-5xl md:text-8xl">ARCHITECT</span>
+                            </h1>
+                            
+                            <div className="text-xl md:text-3xl text-gray-400 font-light mt-8 border-t border-b border-white/10 py-4 inline-block px-12 backdrop-blur-sm bg-white/5">
+                            Identity: <span className="text-yellow-400 font-bold font-mono tracking-wider text-shadow-glow">hjjang17</span>
+                            </div>
+                        </div>
+                        </FadeIn>
+                    </Section>
+
+                    {/* 2. TITLE REVEAL: THE SKY SLAYER */}
+                    <Section className="bg-[#0a0510]">
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5" />
+                        <FadeIn>
+                        <div className="text-center max-w-5xl">
+                            <div className="mb-8 flex justify-center">
+                            <Crown className="w-24 h-24 text-yellow-500 drop-shadow-[0_0_30px_rgba(234,179,8,0.6)] animate-pulse" />
+                            </div>
+                            <h3 className="text-purple-400 text-lg md:text-2xl mb-6 font-mono tracking-widest uppercase">Designated Title</h3>
+                            
+                            <div className="relative">
+                            <h2 className="text-5xl md:text-8xl font-black text-white uppercase italic leading-tight mb-4 drop-shadow-2xl z-10 relative">
+                                "The Sky <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">Slayer</span>"
+                            </h2>
+                            {/* Decorative background text */}
+                            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-9xl text-white/5 font-black whitespace-nowrap blur-sm select-none -z-10">
+                                ADMINISTRATOR
+                            </span>
+                            </div>
+                            
+                            <p className="text-2xl md:text-3xl text-gray-400 font-serif mt-4">창공의 학살자</p>
+                            
+                            <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-4 text-left bg-purple-900/10 p-8 rounded-2xl border border-purple-500/20 backdrop-blur-md">
+                                <div className="flex items-center gap-4">
+                                <Server className="text-purple-400" />
+                                <div>
+                                    <div className="text-xs text-purple-300 uppercase">Role</div>
+                                    <div className="font-bold">Founder / OP</div>
+                                </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                <Database className="text-cyan-400" />
+                                <div>
+                                    <div className="text-xs text-cyan-300 uppercase">Permission</div>
+                                    <div className="font-bold">Level 999 (MAX)</div>
+                                </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                <Globe className="text-yellow-400" />
+                                <div>
+                                    <div className="text-xs text-yellow-300 uppercase">Domain</div>
+                                    <div className="font-bold">hjjang.dev</div>
+                                </div>
+                                </div>
+                            </div>
+                        </div>
+                        </FadeIn>
+                    </Section>
+
+                    {/* 3. PLAYTIME: DEDICATION */}
+                    <Section className="bg-[#05000a] border-t border-purple-900/20">
+                        <div className="flex flex-col items-center max-w-4xl w-full text-center z-10">
+                        <FadeIn>
+                            <div className="mb-8 inline-flex items-center gap-3 px-6 py-2 rounded-full bg-purple-900/30 border border-purple-500/30 text-purple-200">
+                                <Activity className="w-5 h-5 text-green-400" /> 
+                                <span className="font-mono">Server Uptime Contributor</span>
+                            </div>
+                            
+                            <h2 className="text-4xl md:text-6xl font-bold mb-8 text-white">The Watcher's Time</h2>
+                            
+                            <div className="flex flex-col md:flex-row items-baseline justify-center gap-4 md:gap-12 my-10">
+                                <div className="group relative">
+                                <div className="absolute -inset-4 bg-purple-600/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="text-8xl md:text-[10rem] font-black text-white relative z-10">
+                                    <AnimatedNumber value={163} />
+                                    <span className="text-4xl text-purple-500 ml-2">h</span>
+                                </div>
+                                </div>
+                                <div className="text-6xl md:text-[8rem] font-bold text-gray-600">
+                                <AnimatedNumber value={50} />
+                                <span className="text-3xl text-gray-700 ml-2">m</span>
+                                </div>
+                            </div>
+
+                            <p className="text-gray-400 leading-relaxed text-xl max-w-2xl mx-auto border-l-4 border-purple-500 pl-6 italic">
+                            "서버의 고인물 반열에 오르셨습니다.<br/>
+                            당신의 시간은 <strong className="text-white">전투</strong>와 <strong className="text-cyan-400">비행</strong>, 그리고 <strong className="text-yellow-400">관리</strong>로 가득 찼습니다."
+                            </p>
+                        </FadeIn>
+                        </div>
+                    </Section>
+
+                    {/* 4. FLIGHT: THE JET FIGHTER */}
+                    <Section className="relative bg-[#080c14]">
+                        <div className="absolute inset-0 bg-gradient-to-b from-cyan-900/10 via-transparent to-[#05000a]" />
+                        
+                        <div className="w-full max-w-6xl z-10">
+                        <FadeIn>
+                            <h2 className="text-center text-4xl md:text-5xl font-bold mb-20 flex items-center justify-center gap-4 text-cyan-100">
+                            <CloudLightning className="text-cyan-400 w-12 h-12" />
+                            <span>Aerial Superiority</span>
+                            </h2>
+                        </FadeIn>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                            {/* Flight Visual */}
+                            <FadeIn delay={0.1}>
+                                <div className="bg-[#0b1221] p-10 rounded-3xl relative overflow-hidden group border border-cyan-500/20 shadow-[0_0_50px_-10px_rgba(6,182,212,0.15)]">
+                                {/* Background grid animation */}
+                                <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:40px_40px] opacity-20" />
+                                
+                                <div className="relative z-10">
+                                    <div className="flex justify-between items-start mb-12">
+                                    <div>
+                                        <h3 className="text-cyan-400 font-bold text-2xl uppercase tracking-wider mb-2">Flight Log</h3>
+                                        <p className="text-cyan-200/50 text-sm">Operation: Sky High</p>
+                                    </div>
+                                    <Rocket className="text-white w-12 h-12 rotate-45" />
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <div className="text-7xl font-black text-white tracking-tighter">
+                                        <AnimatedNumber value={72} />.3 <span className="text-3xl text-cyan-500">km</span>
+                                        </div>
+                                        <p className="text-cyan-200/60 font-mono text-xs uppercase">Total Distance Flown (Elytra)</p>
+                                    </div>
+                                    
+                                    <div className="mt-12 p-4 bg-cyan-900/20 rounded-xl border border-cyan-500/30 flex items-center gap-4">
+                                        <div className="text-3xl">🚀</div>
+                                        <div>
+                                        <div className="text-xl font-bold text-white"><AnimatedNumber value={1035} /></div>
+                                        <div className="text-xs text-cyan-300">Firework Rockets Crafted</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                </div>
+                            </FadeIn>
+
+                            {/* Comparison Stats */}
+                            <div className="space-y-8">
+                                <FadeIn delay={0.2}>
+                                    <h3 className="text-3xl font-bold mb-6">"땅을 잊은 자"</h3>
+                                    <p className="text-gray-400 mb-8 text-lg">
+                                    당신은 땅을 걷는 것보다 하늘을 나는 것을 훨씬 더 선호했습니다.<br/>
+                                    <span className="text-cyan-400">비행 거리</span>가 보트 이동 거리의 <span className="text-white font-bold">19배</span>에 달합니다.
+                                    </p>
+
+                                    {/* Stat Bars */}
+                                    <div className="space-y-6">
+                                    <div>
+                                        <div className="flex justify-between text-sm mb-2 text-cyan-300 font-bold">
+                                            <span>✈️ Elytra Flight</span>
+                                            <span>72.3 km</span>
+                                        </div>
+                                        <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+                                            <motion.div 
+                                            initial={{ width: 0 }}
+                                            whileInView={{ width: "95%" }}
+                                            transition={{ duration: 1.5, delay: 0.5 }}
+                                            className="h-full bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.8)]"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between text-sm mb-2 text-gray-500">
+                                            <span>🚶 Walking</span>
+                                            <span>~28 km</span>
+                                        </div>
+                                        <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+                                            <motion.div 
+                                            initial={{ width: 0 }}
+                                            whileInView={{ width: "35%" }}
+                                            transition={{ duration: 1.5, delay: 0.7 }}
+                                            className="h-full bg-gray-600"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between text-sm mb-2 text-gray-600">
+                                            <span>🛶 Boat</span>
+                                            <span>3.8 km</span>
+                                        </div>
+                                        <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+                                            <motion.div 
+                                            initial={{ width: 0 }}
+                                            whileInView={{ width: "5%" }}
+                                            transition={{ duration: 1.5, delay: 0.9 }}
+                                            className="h-full bg-gray-700"
+                                            />
+                                        </div>
+                                    </div>
+                                    </div>
+                                </FadeIn>
+                            </div>
+                        </div>
+                        </div>
+                    </Section>
+
+                    {/* 5. COMBAT: NETHER RULER */}
+                    <Section className="bg-[#1a0505] relative overflow-hidden">
+                        {/* Red pulse background */}
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,_var(--tw-gradient-stops))] from-red-900/30 via-transparent to-transparent pointer-events-none animate-pulse duration-[5000ms]" />
+
+                        <FadeIn>
+                        <div className="text-center mb-16">
+                            <div className="w-20 h-20 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/50">
+                                <Sword className="w-10 h-10 text-red-500" />
+                            </div>
+                            <h2 className="text-5xl md:text-7xl font-black text-red-500 uppercase tracking-tighter">Nether Dominance</h2>
+                            <p className="text-red-200/40 mt-4 text-xl">당신의 칼끝은 특정 종족을 향해 있었습니다.</p>
+                        </div>
+                        </FadeIn>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-7xl w-full">
+                            {/* Total Kills - Large Block */}
+                            <div className="lg:col-span-5 bg-gradient-to-br from-red-950 to-black p-10 rounded-3xl border border-red-900/50 flex flex-col justify-center relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-8 opacity-10">
+                                <Skull size={200} className="text-red-600" />
+                            </div>
+                            <div className="relative z-10">
+                                <div className="text-red-500 font-mono text-sm mb-2">TOTAL ENTITIES ELIMINATED</div>
+                                <div className="text-7xl md:text-8xl font-black text-white"><AnimatedNumber value={5437}/></div>
+                                <div className="mt-8 text-gray-400 text-sm leading-relaxed">
+                                    네더의 지배자로서 서버의 생태계를<br/>
+                                    <strong className="text-red-400">최적화(Optimization)</strong> 했습니다.
+                                </div>
+                            </div>
+                            </div>
+
+                            {/* Piglin Highlight - Hero Block */}
+                            <div className="lg:col-span-7 bg-[#2a0a0a] p-10 rounded-3xl border border-yellow-600/30 relative">
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-8 h-full">
+                                <div className="flex-1">
+                                    <div className="inline-block px-3 py-1 rounded bg-yellow-900/40 text-yellow-500 text-xs font-bold mb-4 border border-yellow-500/20">
+                                        PRIMARY TARGET (83%)
+                                    </div>
+                                    <h3 className="text-3xl font-bold text-white mb-2">Zombified Piglin</h3>
+                                    <div className="text-6xl font-black text-yellow-500 mb-4 text-shadow-glow">
+                                        <AnimatedNumber value={4533}/>
+                                    </div>
+                                    <p className="text-red-200/50 text-sm">
+                                        네더라이트 검을 <span className="text-white font-bold">2,469번</span> 휘두르며<br/>
+                                        그들의 비명소리로 서버를 채웠습니다.
+                                    </p>
+                                </div>
+                                
+                                {/* Visual Representation of Piglin Army */}
+                                <div className="grid grid-cols-5 gap-1 opacity-30">
+                                    {[...Array(20)].map((_, i) => (
+                                        <div key={i} className="w-4 h-4 bg-red-500 rounded-sm animate-pulse" style={{ animationDelay: `${i * 0.1}s` }} />
+                                    ))}
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                    </Section>
+
+                    {/* 6. GEAR & SPECIAL: ADMIN SPEC */}
+                    <Section className="bg-[#05000a] border-t border-purple-900/30">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-6xl w-full items-start">
+                        
+                        {/* Gear Stats */}
+                        <FadeIn direction="right">
+                            <h3 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
+                                <Zap className="text-yellow-400" /> God-Tier Gear
+                            </h3>
+                            
+                            <div className="space-y-4">
+                            {/* Netherite Pickaxe */}
+                            <div className="bg-[#111] p-6 rounded-2xl border border-purple-500/20 flex items-center justify-between group hover:border-purple-500/50 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-purple-900/20 rounded-xl">
+                                        <Pickaxe className="text-purple-400" />
+                                    </div>
+                                    <div>
+                                        <div className="text-white font-bold text-lg">Netherite Pickaxe</div>
+                                        <div className="text-gray-500 text-xs">Used 2,474 times</div>
+                                    </div>
+                                </div>
+                                <div className="text-2xl font-black text-purple-500">MAX</div>
+                            </div>
+
+                            {/* Netherite Sword */}
+                            <div className="bg-[#111] p-6 rounded-2xl border border-red-500/20 flex items-center justify-between group hover:border-red-500/50 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-red-900/20 rounded-xl">
+                                        <Sword className="text-red-400" />
+                                    </div>
+                                    <div>
+                                        <div className="text-white font-bold text-lg">Netherite Sword</div>
+                                        <div className="text-gray-500 text-xs">Used 2,469 times</div>
+                                    </div>
+                                </div>
+                                <div className="text-2xl font-black text-red-500">MAX</div>
+                            </div>
+
+                            {/* Totem */}
+                            <div className="bg-[#111] p-6 rounded-2xl border border-yellow-500/20 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-yellow-900/20 rounded-xl">
+                                        <Award className="text-yellow-400" />
+                                    </div>
+                                    <div>
+                                        <div className="text-white font-bold text-lg">Totem of Undying</div>
+                                        <div className="text-gray-500 text-xs">Cheated Death 7 times</div>
+                                    </div>
+                                </div>
+                                <div className="text-lg font-bold text-yellow-500">IMMORTAL</div>
+                            </div>
+                            </div>
+                        </FadeIn>
+
+                        {/* Special Traits */}
+                        <FadeIn direction="left" delay={0.2}>
+                            <h3 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
+                                <Code className="text-green-400" /> Unique Traits
+                            </h3>
+
+                            <div className="bg-[#0a100a] p-8 rounded-3xl border border-green-900/30 relative">
+                                <div className="mb-8">
+                                    <div className="text-xs text-green-500 font-mono mb-2">// PREFERENCE_LOG</div>
+                                    <h4 className="text-2xl font-bold text-white mb-1">Spruce Architect</h4>
+                                    <div className="text-4xl font-black text-green-400 mb-2"><AnimatedNumber value={1180}/></div>
+                                    <p className="text-gray-400 text-sm">
+                                        차가운 네더라이트 갑옷을 입고,<br/>
+                                        따뜻한 가문비나무 집에서 휴식을 취하는 반전 매력.
+                                    </p>
+                                </div>
+                                
+                                <div className="h-px bg-green-900/30 w-full mb-8" />
+                                
+                                <div>
+                                    <div className="text-xs text-green-500 font-mono mb-2">// ADMIN_NOTE</div>
+                                    <p className="text-lg text-white font-serif italic">
+                                        "네더라이트 풀세트를 입고 <span className="text-cyan-400">72km</span>의 상공을 가르며,<br/>
+                                        <span className="text-red-500">4,500마리</span>의 피글린을 잠재운<br/>
+                                        <GlitchText text="hjjang17" />."
+                                    </p>
+                                </div>
+                            </div>
+                        </FadeIn>
+                        </div>
+                    </Section>
+
+                    {/* 7. OUTRO: FOUNDER ACKNOWLEDGEMENT */}
+                    <Section className="bg-[#020005]">
+                        <FadeIn>
+                        <div className="max-w-5xl mx-auto px-6 text-center relative z-10">
+                            
+                            <div className="mb-12">
+                            <Cpu className="w-20 h-20 text-purple-500 mx-auto animate-pulse opacity-50" />
+                            </div>
+
+                            <h2 className="text-4xl md:text-6xl font-bold text-white mb-6">
+                            Thank you for Building this World.
+                            </h2>
+                            <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-16">
+                            2025년, 당신이 있었기에 서버의 모든 역사가 가능했습니다.<br/>
+                            The Creator, The Founder, The Operator.
+                            </p>
+
+                            <div className="inline-block p-[2px] rounded-full bg-gradient-to-r from-purple-500 via-yellow-500 to-cyan-500">
+                            <div className="px-10 py-4 bg-black rounded-full">
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 font-black text-3xl md:text-4xl tracking-widest">
+                                hjjang17
+                                </span>
+                            </div>
+                            </div>
+                            
+                            <div className="mt-24 flex items-center justify-center gap-3 opacity-50">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <p className="text-sm text-gray-500 font-mono">System Operational • hjjang.dev</p>
+                            </div>
+                        </div>
+                        </FadeIn>
+                    </Section>
+                    </div>
+                );
+            }
+
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(<App />);
+
+        } catch (err) {
+            console.error(err);
+            const display = document.getElementById('error-display');
+            display.style.display = 'block';
+            display.innerHTML += `<h3>⚠️ Script Error</h3><p>${err.message}</p>`;
+        }
+
+    {% endraw %}
+    // ▲ Jinja2 충돌 방지 태그 닫기
+    </script>
+</body>
+</html>

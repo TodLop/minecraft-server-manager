@@ -1,0 +1,1537 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Panel - Minecraft Server{% endblock %}
+
+{% block head %}
+<style>
+    .glass-card {
+        background: rgba(10, 10, 15, 0.6);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(168, 85, 247, 0.15);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .glass-card-hover {
+        transition: all 0.3s ease;
+    }
+
+    .glass-card-hover:hover {
+        border-color: rgba(168, 85, 247, 0.3);
+        box-shadow: 0 8px 40px rgba(168, 85, 247, 0.1);
+    }
+
+    .staff-badge {
+        background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+    }
+
+    .status-dot {
+        position: relative;
+    }
+
+    .status-dot::after {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        background: inherit;
+        animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        opacity: 0;
+    }
+
+    .status-dot.online::after {
+        opacity: 0.4;
+    }
+
+    @keyframes pulse-ring {
+
+        0%,
+        100% {
+            transform: scale(1);
+            opacity: 0.4;
+        }
+
+        50% {
+            transform: scale(1.5);
+            opacity: 0;
+        }
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-warning {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .btn-warning:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+    }
+
+    .btn-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-secondary {
+        background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(168, 85, 247, 0.4);
+    }
+
+    .player-card {
+        transition: all 0.2s ease;
+    }
+
+    .player-card:hover {
+        transform: translateY(-2px);
+        background: rgba(10, 10, 15, 0.8);
+    }
+
+    .input-field {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(71, 85, 105, 0.5);
+        transition: all 0.2s ease;
+    }
+
+    .input-field:focus {
+        border-color: rgba(168, 85, 247, 0.5);
+        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
+    }
+
+    .section-title {
+        position: relative;
+        padding-left: 12px;
+    }
+
+    .section-title::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 70%;
+        background: linear-gradient(180deg, #a855f7, #c084fc);
+        border-radius: 2px;
+    }
+
+    /* Tab styles */
+    .tab-btn {
+        transition: all 0.2s ease;
+    }
+    .tab-btn.active {
+        background: rgba(168, 85, 247, 0.2);
+        border-color: rgba(168, 85, 247, 0.5);
+        color: #d8b4fe;
+    }
+
+    /* Log viewer styles */
+    .log-viewer {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+        font-size: 0.75rem;
+        line-height: 1.5;
+    }
+    .log-entry {
+        padding: 2px 8px;
+        border-bottom: 1px solid rgba(30, 30, 40, 0.3);
+    }
+    .log-entry:hover {
+        background: rgba(30, 30, 40, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="staffPanel()" x-init="init()"
+    class="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-purple-500/30">
+
+    <!-- Background Pattern -->
+    <div class="fixed inset-0 opacity-30 pointer-events-none">
+        <div class="absolute inset-0"
+            style="background-image: radial-gradient(rgba(168, 85, 247, 0.1) 1px, transparent 1px); background-size: 40px 40px;">
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <header class="sticky top-0 z-30 border-b border-purple-500/20 bg-[#0a0a0a]/80 backdrop-blur-xl">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-4">
+                    <a href="/"
+                        class="group flex items-center justify-center w-10 h-10 rounded-xl bg-[#0a0a0a] hover:bg-slate-800 border border-slate-700/50 transition-all">
+                        <i data-lucide="arrow-left"
+                            class="w-5 h-5 text-slate-400 group-hover:text-white group-hover:-translate-x-0.5 transition-all"></i>
+                    </a>
+                    <div class="flex items-center gap-3">
+                        <div class="staff-badge px-3 py-1.5 rounded-lg">
+                            <span class="text-xs font-bold text-white tracking-wider">STAFF</span>
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-bold text-white tracking-tight">
+                                Server Control Panel
+                            </h1>
+                            <p class="text-xs text-slate-500">Limited Access Mode</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <a href="/minecraft/taskboard" title="Task Board"
+                        class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 hover:border-purple-500/50 transition-all">
+                        <i data-lucide="clipboard-list" class="w-4 h-4 text-purple-400 group-hover:text-purple-300"></i>
+                        <span class="hidden sm:inline text-sm font-medium text-purple-300 group-hover:text-purple-200">Task Board</span>
+                    </a>
+                    <a href="/minecraft/plugins" title="Plugin Docs" x-data="{ unreadCount: 0 }" x-init="fetch('/minecraft/plugins/api/notifications/unread').then(r => r.json()).then(d => unreadCount = d.count || 0).catch(() => {})"
+                        x-show="isFeatureVisible('plugin_installation')"
+                        class="relative group flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 hover:border-purple-500/50 transition-all">
+                        <i data-lucide="file-text" class="w-4 h-4 text-purple-400 group-hover:text-purple-300"></i>
+                        <span class="hidden sm:inline text-sm font-medium text-purple-300 group-hover:text-purple-200">Plugin Docs</span>
+                        <span x-show="unreadCount > 0" x-text="unreadCount < 10 ? unreadCount : '9+'"
+                            class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center"></span>
+                    </a>
+                    <div
+                        class="hidden sm:flex items-center gap-3 px-4 py-2 rounded-xl bg-[#0a0a0a] border border-slate-700/50">
+                        <div
+                            class="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                            <span class="text-sm font-bold text-white">{{ (user_info.name or user_info.email)[0] | upper
+                                }}</span>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-sm font-medium text-white">{{ user_info.name or 'Staff Member' }}</span>
+                            <span class="text-xs text-slate-500">{{ user_info.email }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+        <!-- Server Status Card -->
+        <section class="glass-card glass-card-hover rounded-2xl overflow-hidden">
+            <div class="p-6 sm:p-8">
+                <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+
+                    <!-- Status Display -->
+                    <div class="flex items-center gap-5">
+                        <div class="relative">
+                            <div
+                                class="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#0a0a0a] to-[#0a0a0a] border border-slate-700/50 flex items-center justify-center shadow-xl">
+                                <i data-lucide="server" class="w-10 h-10"
+                                    :class="serverRunning ? 'text-emerald-400' : 'text-slate-600'"></i>
+                            </div>
+                            <div class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full border-3 border-[#0a0a0a] status-dot"
+                                :class="serverRunning ? 'bg-emerald-500 online' : 'bg-red-500'"></div>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-3 mb-2">
+                                <h2 class="text-2xl font-bold text-white">Minecraft Server</h2>
+                                <span class="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full"
+                                    :class="serverRunning ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30' : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/30'"
+                                    x-text="serverRunning ? 'Online' : 'Offline'">
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-5 text-sm">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-lg bg-[#0a0a0a] flex items-center justify-center">
+                                        <i data-lucide="users" class="w-4 h-4"
+                                            :class="serverRunning ? 'text-purple-400' : 'text-slate-600'"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-slate-500">Players</p>
+                                        <p class="font-semibold text-white"
+                                            x-text="serverRunning ? `${playersOnline} / ${maxPlayers}` : '-- / --'"></p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-lg bg-[#0a0a0a] flex items-center justify-center">
+                                        <i data-lucide="cpu" class="w-4 h-4 text-slate-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-slate-500">Version</p>
+                                        <p class="font-semibold text-white">Paper 1.21.11</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Control Buttons -->
+                    <div class="flex items-center gap-3 w-full lg:w-auto">
+                        <button @click="startServer()" :disabled="serverRunning || loading"
+                            class="flex-1 lg:flex-none btn-primary px-6 py-3 rounded-xl text-white font-semibold active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
+                            <div class="flex items-center justify-center gap-2">
+                                <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                                <span x-text="loading && !serverRunning ? 'Starting...' : 'Start'"></span>
+                            </div>
+                        </button>
+
+                        <button @click="restartServer()" :disabled="loading"
+                            x-show="isFeatureVisible('server_restart')"
+                            class="flex-1 lg:flex-none btn-warning px-6 py-3 rounded-xl text-white font-semibold active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
+                            <div class="flex items-center justify-center gap-2">
+                                <i data-lucide="refresh-cw" class="w-4 h-4" :class="loading ? 'animate-spin' : ''"></i>
+                                <span>Restart</span>
+                            </div>
+                        </button>
+
+                        <button @click="refreshStatus()"
+                            class="p-3 rounded-xl bg-[#0a0a0a] hover:bg-slate-700 text-slate-300 border border-slate-700/50 transition-all active:scale-95">
+                            <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div
+                class="bg-[#0a0a0a]/60 border-t border-slate-800/50 px-6 py-3 flex items-center justify-between text-xs text-slate-500">
+                <div class="flex items-center gap-4">
+                    <span class="flex items-center gap-1.5">
+                        <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+                        nearoutpost.hjjang.dev
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <i data-lucide="hash" class="w-3.5 h-3.5"></i>
+                        Port 25565
+                    </span>
+                </div>
+                <span class="text-slate-600">Auto-refresh: 5s</span>
+            </div>
+        </section>
+
+        <!-- Tab Navigation -->
+        <div class="flex flex-wrap gap-2">
+            <button @click="activeTab = 'players'"
+                class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
+                :class="activeTab === 'players' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                    Players
+                </span>
+            </button>
+            <button @click="activeTab = 'moderation'"
+                class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
+                :class="activeTab === 'moderation' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="shield" class="w-4 h-4"></i>
+                    Moderation
+                </span>
+            </button>
+            <button @click="activeTab = 'logs'"
+                class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
+                :class="activeTab === 'logs' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    Logs
+                </span>
+            </button>
+            <button @click="activeTab = 'whitelist'"
+                class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
+                :class="activeTab === 'whitelist' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="list-checks" class="w-4 h-4"></i>
+                    Whitelist
+                </span>
+            </button>
+            <button @click="activeTab = 'lookup'"
+                class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
+                :class="activeTab === 'lookup' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                    CoreProtect
+                </span>
+            </button>
+            <button @click="activeTab = 'warnings'"
+                class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
+                :class="activeTab === 'warnings' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                    Warnings
+                </span>
+            </button>
+            <!-- Investigation Page Link -->
+            <a href="/minecraft/staff/investigation"
+                class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-purple-500/50 bg-purple-500/10 text-purple-300 hover:border-purple-500/70 hover:bg-purple-500/20 transition-all">
+                <span class="flex items-center gap-2">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                    Investigation & Spectator
+                </span>
+            </a>
+        </div>
+
+        <!-- Players Tab -->
+        <div x-show="activeTab === 'players'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Online Players -->
+                <section class="lg:col-span-2 glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="section-title text-lg font-bold text-white flex items-center gap-2">
+                            <i data-lucide="users" class="w-5 h-5 text-purple-400"></i>
+                            Online Players
+                        </h3>
+                        <span
+                            class="px-3 py-1.5 rounded-lg bg-[#0a0a0a] text-xs font-medium text-slate-400 ring-1 ring-slate-700/50"
+                            x-text="players.length + ' online'"></span>
+                    </div>
+
+                    <div class="min-h-[220px]">
+                        <template x-if="!serverRunning">
+                            <div class="h-full flex flex-col items-center justify-center text-slate-600 py-12">
+                                <div class="w-16 h-16 rounded-2xl bg-[#0a0a0a] flex items-center justify-center mb-4">
+                                    <i data-lucide="power-off" class="w-8 h-8 opacity-40"></i>
+                                </div>
+                                <p class="text-sm font-medium">Server is offline</p>
+                                <p class="text-xs text-slate-700 mt-1">Start the server to see players</p>
+                            </div>
+                        </template>
+
+                        <template x-if="serverRunning && players.length === 0">
+                            <div class="h-full flex flex-col items-center justify-center text-slate-600 py-12">
+                                <div class="w-16 h-16 rounded-2xl bg-[#0a0a0a] flex items-center justify-center mb-4">
+                                    <i data-lucide="user-x" class="w-8 h-8 opacity-40"></i>
+                                </div>
+                                <p class="text-sm font-medium">No players online</p>
+                                <p class="text-xs text-slate-700 mt-1">Waiting for players to join</p>
+                            </div>
+                        </template>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" x-show="serverRunning && players.length > 0">
+                            <template x-for="player in players" :key="player">
+                                <div
+                                    class="player-card group flex items-center gap-3 p-3 rounded-xl bg-[#0a0a0a] border border-slate-700/30 cursor-default">
+                                    <div
+                                        class="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center overflow-hidden ring-2 ring-slate-600/30">
+                                        <img :src="`https://minotar.net/avatar/${extractUsername(player)}/40`"
+                                            class="w-full h-full object-cover"
+                                            style="image-rendering: pixelated;"
+                                            :alt="extractUsername(player)"
+                                            data-url-index="0"
+                                            @error="loadAvatarWithRetry($event.target, player)">
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-semibold text-white truncate" x-text="extractUsername(player)"></p>
+                                        <p class="text-xs text-slate-500">Online</p>
+                                    </div>
+                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                        <button @click="kickPlayer(extractUsername(player))"
+                                            class="p-2 rounded-lg hover:bg-amber-500/20 text-slate-500 hover:text-amber-400 transition-all"
+                                            title="Kick">
+                                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click="openWarnModal(extractUsername(player))"
+                                            class="p-2 rounded-lg hover:bg-yellow-500/20 text-slate-500 hover:text-yellow-400 transition-all"
+                                            title="Warn">
+                                            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                                        </button>
+                                        <button @click="openBanModal(extractUsername(player))"
+                                            class="p-2 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
+                                            title="Temp Ban">
+                                            <i data-lucide="gavel" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Broadcast -->
+                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center">
+                            <i data-lucide="megaphone" class="w-5 h-5 text-purple-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Broadcast</h3>
+                            <p class="text-xs text-slate-500">Send server announcement</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Message (max 200 chars)
+                            </label>
+                            <textarea x-model="broadcastMessage" rows="3" maxlength="200"
+                                class="input-field w-full rounded-xl py-2.5 px-4 text-sm text-white placeholder-slate-600 focus:outline-none resize-none"
+                                placeholder="Enter your announcement..."></textarea>
+                            <p class="text-xs text-slate-600 mt-1" x-text="`${broadcastMessage.length}/200`"></p>
+                        </div>
+
+                        <button @click="sendBroadcast()" :disabled="!broadcastMessage.trim() || broadcasting || !serverRunning"
+                            class="btn-secondary w-full py-3 rounded-xl text-white font-bold active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
+                            <span x-show="!broadcasting" class="flex items-center justify-center gap-2">
+                                <i data-lucide="send" class="w-4 h-4"></i>
+                                Send Broadcast
+                            </span>
+                            <span x-show="broadcasting" class="flex items-center justify-center gap-2">
+                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                                Sending...
+                            </span>
+                        </button>
+
+                        <div class="flex items-center gap-2 p-3 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                            <i data-lucide="clock" class="w-4 h-4 text-slate-500 flex-shrink-0"></i>
+                            <p class="text-xs text-slate-500">
+                                1 minute cooldown between broadcasts.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Moderation Tab (Ban/Warn Forms) -->
+        <div x-show="activeTab === 'moderation'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Temp Ban Form -->
+                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center">
+                            <i data-lucide="gavel" class="w-5 h-5 text-red-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Temp Ban</h3>
+                            <p class="text-xs text-slate-500">Temporarily ban a player</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Player Name
+                            </label>
+                            <div class="relative">
+                                <i data-lucide="user"
+                                    class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600"></i>
+                                <input type="text" x-model="banForm.player"
+                                    class="input-field w-full rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none"
+                                    placeholder="Enter username">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Duration
+                            </label>
+                            <div class="grid grid-cols-4 gap-2">
+                                <template x-for="time in ['1h', '6h', '24h', '7d']">
+                                    <button @click="banForm.duration = time"
+                                        class="px-3 py-2.5 rounded-lg text-sm font-medium border transition-all"
+                                        :class="banForm.duration === time
+                                            ? 'bg-red-500/20 border-red-500/40 text-red-400'
+                                            : 'bg-[#0a0a0a] border-slate-700/50 text-slate-400 hover:bg-slate-800 hover:text-slate-300'">
+                                        <span x-text="time"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Reason
+                            </label>
+                            <textarea x-model="banForm.reason" rows="2"
+                                class="input-field w-full rounded-xl py-2.5 px-4 text-sm text-white placeholder-slate-600 focus:outline-none resize-none"
+                                placeholder="Reason for the ban..."></textarea>
+                        </div>
+
+                        <button @click="tempbanPlayer()" :disabled="!banForm.player || banning"
+                            class="btn-danger w-full py-3 rounded-xl text-white font-bold active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
+                            <span x-show="!banning" class="flex items-center justify-center gap-2">
+                                <i data-lucide="gavel" class="w-4 h-4"></i>
+                                Execute Ban
+                            </span>
+                            <span x-show="banning" class="flex items-center justify-center gap-2">
+                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                                Processing...
+                            </span>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Warn Form -->
+                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="w-10 h-10 rounded-xl bg-yellow-500/15 flex items-center justify-center">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Issue Warning</h3>
+                            <p class="text-xs text-slate-500">Warn a player with tracking</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Player Name
+                            </label>
+                            <div class="relative">
+                                <i data-lucide="user"
+                                    class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600"></i>
+                                <input type="text" x-model="warnForm.player"
+                                    class="input-field w-full rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none"
+                                    placeholder="Enter username">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Warning Reason
+                            </label>
+                            <textarea x-model="warnForm.reason" rows="3"
+                                class="input-field w-full rounded-xl py-2.5 px-4 text-sm text-white placeholder-slate-600 focus:outline-none resize-none"
+                                placeholder="Describe the violation..."></textarea>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" x-model="warnForm.notify" id="notifyPlayer"
+                                class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-purple-500 focus:ring-purple-500/20">
+                            <label for="notifyPlayer" class="text-sm text-slate-400">Notify player in-game</label>
+                        </div>
+
+                        <button @click="warnPlayer()" :disabled="!warnForm.player || !warnForm.reason || warning"
+                            class="btn-warning w-full py-3 rounded-xl text-white font-bold active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
+                            <span x-show="!warning" class="flex items-center justify-center gap-2">
+                                <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                                Issue Warning
+                            </span>
+                            <span x-show="warning" class="flex items-center justify-center gap-2">
+                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                                Processing...
+                            </span>
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <div class="mt-6 flex items-center gap-2 p-4 rounded-xl bg-[#0a0a0a] border border-slate-700/30">
+                <i data-lucide="shield-check" class="w-5 h-5 text-purple-400 flex-shrink-0"></i>
+                <p class="text-sm text-slate-500">
+                    Protected players cannot be banned or warned. All moderation actions are logged for audit.
+                </p>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div x-show="activeTab === 'logs'" x-transition>
+            <section class="glass-card glass-card-hover rounded-2xl overflow-hidden">
+                <div class="p-6 border-b border-slate-800/50">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <h3 class="section-title text-lg font-bold text-white flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-5 h-5 text-purple-400"></i>
+                            Server Logs
+                        </h3>
+                        <div class="flex items-center gap-3 w-full sm:w-auto">
+                            <div class="relative flex-1 sm:flex-none">
+                                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600"></i>
+                                <input type="text" x-model="logSearch" @keyup.enter="fetchLogs()"
+                                    class="input-field w-full sm:w-48 rounded-lg py-2 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none"
+                                    placeholder="Search player...">
+                            </div>
+                            <button @click="fetchLogs()" :disabled="loadingLogs"
+                                class="px-4 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-300 border border-slate-600/50 transition-all">
+                                <i data-lucide="refresh-cw" class="w-4 h-4" :class="loadingLogs ? 'animate-spin' : ''"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="log-viewer max-h-96 overflow-y-auto">
+                    <template x-if="loadingLogs">
+                        <div class="flex items-center justify-center py-12">
+                            <i data-lucide="loader-2" class="w-8 h-8 text-purple-400 animate-spin"></i>
+                        </div>
+                    </template>
+                    <template x-if="!loadingLogs && serverLogs.length === 0">
+                        <div class="flex flex-col items-center justify-center py-12 text-slate-600">
+                            <i data-lucide="file-x" class="w-12 h-12 mb-4 opacity-40"></i>
+                            <p class="text-sm">No logs available</p>
+                        </div>
+                    </template>
+                    <template x-if="!loadingLogs && serverLogs.length > 0">
+                        <div>
+                            <template x-for="log in serverLogs" :key="log.time + log.message">
+                                <div class="log-entry text-slate-400">
+                                    <span class="text-slate-600" x-text="log.time"></span>
+                                    <span x-text="log.message"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="p-4 border-t border-slate-800/50 text-xs text-slate-600">
+                    <span x-text="`Showing ${serverLogs.length} log entries`"></span>
+                    <span class="ml-2">(IPs and sensitive data filtered)</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- Whitelist Tab -->
+        <div x-show="activeTab === 'whitelist'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Whitelist Players -->
+                <section class="lg:col-span-2 glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                        <h3 class="section-title text-lg font-bold text-white flex items-center gap-2">
+                            <i data-lucide="list-checks" class="w-5 h-5 text-purple-400"></i>
+                            Whitelisted Players
+                            <span class="text-xs text-slate-500 font-normal" x-text="`(${whitelist.length})`"></span>
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <!-- Sort Buttons -->
+                            <div class="flex items-center gap-1 p-1 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <button @click="whitelistSort = 'az'"
+                                    class="px-2 py-1 rounded text-xs font-medium transition-all"
+                                    :class="whitelistSort === 'az' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-500 hover:text-slate-300'"
+                                    title="Sort A to Z">
+                                    A-Z
+                                </button>
+                                <button @click="whitelistSort = 'za'"
+                                    class="px-2 py-1 rounded text-xs font-medium transition-all"
+                                    :class="whitelistSort === 'za' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-500 hover:text-slate-300'"
+                                    title="Sort Z to A">
+                                    Z-A
+                                </button>
+                            </div>
+                            <button @click="fetchWhitelist()" :disabled="loadingWhitelist"
+                                class="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-400 border border-slate-600/50 transition-all">
+                                <i data-lucide="refresh-cw" class="w-4 h-4" :class="loadingWhitelist ? 'animate-spin' : ''"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="min-h-[200px]">
+                        <template x-if="!serverRunning">
+                            <div class="h-full flex flex-col items-center justify-center text-slate-600 py-12">
+                                <i data-lucide="power-off" class="w-12 h-12 opacity-40 mb-4"></i>
+                                <p class="text-sm">Server offline</p>
+                            </div>
+                        </template>
+                        <template x-if="serverRunning && whitelist.length === 0">
+                            <div class="h-full flex flex-col items-center justify-center text-slate-600 py-12">
+                                <i data-lucide="user-x" class="w-12 h-12 opacity-40 mb-4"></i>
+                                <p class="text-sm">No players whitelisted</p>
+                            </div>
+                        </template>
+                        <div class="flex flex-wrap gap-2" x-show="serverRunning && whitelist.length > 0">
+                            <template x-for="player in sortedWhitelist" :key="player.name || player">
+                                <div class="group flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                    <span class="text-sm text-white" x-text="player.name || player"></span>
+                                    <button x-show="isFeatureVisible('whitelist_remove')" @click="removeFromWhitelist(player.name || player)"
+                                        class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
+                                        title="Remove from whitelist">
+                                        <i data-lucide="x" class="w-3 h-3"></i>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Add to Whitelist -->
+                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                            <i data-lucide="user-plus" class="w-5 h-5 text-emerald-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Add Player</h3>
+                            <p class="text-xs text-slate-500">Add to whitelist</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Player Name
+                            </label>
+                            <div class="relative">
+                                <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600"></i>
+                                <input type="text" x-model="whitelistPlayer"
+                                    class="input-field w-full rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none"
+                                    placeholder="Enter username">
+                            </div>
+                        </div>
+
+                        <button @click="addToWhitelist()" :disabled="!whitelistPlayer.trim() || !serverRunning"
+                            class="btn-primary w-full py-3 rounded-xl text-white font-bold active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
+                            <span class="flex items-center justify-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Add to Whitelist
+                            </span>
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- CoreProtect Lookup Tab -->
+        <div x-show="activeTab === 'lookup'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Lookup Form -->
+                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="w-10 h-10 rounded-xl bg-cyan-500/15 flex items-center justify-center">
+                            <i data-lucide="search" class="w-5 h-5 text-cyan-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">CoreProtect Lookup</h3>
+                            <p class="text-xs text-slate-500">Investigate block changes</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Lookup Type
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button @click="lookupType = 'player'"
+                                    class="px-3 py-2.5 rounded-lg text-sm font-medium border transition-all"
+                                    :class="lookupType === 'player'
+                                        ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+                                        : 'bg-[#0a0a0a] border-slate-700/50 text-slate-400 hover:bg-slate-800'">
+                                    By Player
+                                </button>
+                                <button @click="lookupType = 'coords'"
+                                    class="px-3 py-2.5 rounded-lg text-sm font-medium border transition-all"
+                                    :class="lookupType === 'coords'
+                                        ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+                                        : 'bg-[#0a0a0a] border-slate-700/50 text-slate-400 hover:bg-slate-800'">
+                                    By Coords
+                                </button>
+                            </div>
+                        </div>
+
+                        <template x-if="lookupType === 'player'">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                    Player Name
+                                </label>
+                                <input type="text" x-model="lookupPlayer"
+                                    class="input-field w-full rounded-xl py-2.5 px-4 text-sm text-white placeholder-slate-600 focus:outline-none"
+                                    placeholder="Enter username">
+                            </div>
+                        </template>
+
+                        <template x-if="lookupType === 'coords'">
+                            <div class="space-y-3">
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1">X</label>
+                                        <input type="number" x-model.number="lookupCoords.x"
+                                            class="input-field w-full rounded-lg py-2 px-3 text-sm text-white focus:outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1">Y</label>
+                                        <input type="number" x-model.number="lookupCoords.y"
+                                            class="input-field w-full rounded-lg py-2 px-3 text-sm text-white focus:outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1">Z</label>
+                                        <input type="number" x-model.number="lookupCoords.z"
+                                            class="input-field w-full rounded-lg py-2 px-3 text-sm text-white focus:outline-none">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">Radius</label>
+                                    <input type="number" x-model.number="lookupCoords.radius" min="1" max="10"
+                                        class="input-field w-full rounded-lg py-2 px-3 text-sm text-white focus:outline-none"
+                                        placeholder="1-10">
+                                </div>
+                            </div>
+                        </template>
+
+                        <button @click="performLookup()" :disabled="lookupLoading || (lookupType === 'player' && !lookupPlayer)"
+                            class="btn-secondary w-full py-3 rounded-xl text-white font-bold active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-show="!lookupLoading" class="flex items-center justify-center gap-2">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                                Search
+                            </span>
+                            <span x-show="lookupLoading" class="flex items-center justify-center gap-2">
+                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                                Searching...
+                            </span>
+                        </button>
+
+                        <div class="flex items-center gap-2 p-3 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                            <i data-lucide="info" class="w-4 h-4 text-slate-500 flex-shrink-0"></i>
+                            <p class="text-xs text-slate-500">
+                                Read-only. Last 7 days only.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Lookup Results -->
+                <section class="lg:col-span-2 glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="section-title text-lg font-bold text-white">
+                            Lookup Results
+                        </h3>
+                        <span class="px-3 py-1 rounded-lg bg-[#0a0a0a] text-xs font-medium text-slate-400"
+                            x-text="`${lookupResults.length} results`"></span>
+                    </div>
+
+                    <div class="max-h-96 overflow-y-auto">
+                        <template x-if="lookupResults.length === 0">
+                            <div class="flex flex-col items-center justify-center py-12 text-slate-600">
+                                <i data-lucide="search-x" class="w-12 h-12 opacity-40 mb-4"></i>
+                                <p class="text-sm">No results. Run a search.</p>
+                            </div>
+                        </template>
+                        <template x-if="lookupResults.length > 0">
+                            <div class="space-y-2">
+                                <template x-for="r in lookupResults" :key="r.id">
+                                    <div class="p-3 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-sm font-medium text-white" x-text="r.player"></span>
+                                            <span class="text-xs text-slate-500" x-text="r.timestamp"></span>
+                                        </div>
+                                        <div class="flex items-center gap-3 text-xs text-slate-400">
+                                            <span :class="{
+                                                'text-red-400': r.action === 'break',
+                                                'text-emerald-400': r.action === 'place',
+                                                'text-amber-400': r.action === 'interact'
+                                            }" x-text="r.action"></span>
+                                            <span x-text="r.block"></span>
+                                            <span class="text-slate-600" x-text="`@ ${r.x}, ${r.y}, ${r.z}`"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Warnings Tab -->
+        <div x-show="activeTab === 'warnings'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Recent Warnings -->
+                <section class="lg:col-span-2 glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="section-title text-lg font-bold text-white flex items-center gap-2">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-400"></i>
+                            Recent Warnings
+                        </h3>
+                        <button @click="fetchWarnings()" :disabled="loadingWarnings"
+                            class="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-400 border border-slate-600/50 transition-all">
+                            <i data-lucide="refresh-cw" class="w-4 h-4" :class="loadingWarnings ? 'animate-spin' : ''"></i>
+                        </button>
+                    </div>
+
+                    <div class="max-h-96 overflow-y-auto">
+                        <template x-if="warningsList.length === 0">
+                            <div class="flex flex-col items-center justify-center py-12 text-slate-600">
+                                <i data-lucide="check-circle" class="w-12 h-12 opacity-40 mb-4"></i>
+                                <p class="text-sm">No warnings issued</p>
+                            </div>
+                        </template>
+                        <template x-if="warningsList.length > 0">
+                            <div class="space-y-2">
+                                <template x-for="w in warningsList" :key="w.id">
+                                    <div class="p-4 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                        <div class="flex items-start justify-between gap-4">
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-2 mb-1">
+                                                    <span class="text-sm font-semibold text-white" x-text="w.player"></span>
+                                                    <span class="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-400">Warning</span>
+                                                </div>
+                                                <p class="text-sm text-slate-400 mb-2" x-text="w.reason"></p>
+                                                <div class="flex items-center gap-4 text-xs text-slate-500">
+                                                    <span x-text="new Date(w.timestamp).toLocaleString()"></span>
+                                                    <span>by <span class="text-slate-400" x-text="w.issued_by.split('@')[0]"></span></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+
+                <!-- Player Warning Lookup -->
+                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="w-10 h-10 rounded-xl bg-yellow-500/15 flex items-center justify-center">
+                            <i data-lucide="user-search" class="w-5 h-5 text-yellow-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Player Lookup</h3>
+                            <p class="text-xs text-slate-500">Check warning history</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Player Name
+                            </label>
+                            <div class="relative">
+                                <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600"></i>
+                                <input type="text" x-model="warningLookupPlayer"
+                                    class="input-field w-full rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none"
+                                    placeholder="Enter username">
+                            </div>
+                        </div>
+
+                        <button @click="lookupPlayerWarnings()" :disabled="!warningLookupPlayer.trim()"
+                            class="btn-secondary w-full py-3 rounded-xl text-white font-bold active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span class="flex items-center justify-center gap-2">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                                Search Warnings
+                            </span>
+                        </button>
+
+                        <template x-if="playerWarnings">
+                            <div class="mt-4 p-4 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="font-semibold text-white" x-text="warningLookupPlayer"></span>
+                                    <span class="px-2 py-1 rounded text-xs"
+                                        :class="playerWarnings.count >= 3 ? 'bg-red-500/20 text-red-400' : 'bg-slate-700 text-slate-400'"
+                                        x-text="`${playerWarnings.count} warnings`"></span>
+                                </div>
+                                <template x-if="playerWarnings.escalation_recommendation">
+                                    <div class="p-2 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-400 mb-3">
+                                        <i data-lucide="alert-circle" class="w-3 h-3 inline mr-1"></i>
+                                        <span x-text="playerWarnings.escalation_recommendation"></span>
+                                    </div>
+                                </template>
+                                <div class="space-y-2 max-h-40 overflow-y-auto">
+                                    <template x-for="w in playerWarnings.warnings" :key="w.id">
+                                        <div class="text-xs text-slate-400 p-2 bg-[#0a0a0a]/50 rounded">
+                                            <p x-text="w.reason"></p>
+                                            <p class="text-slate-600 mt-1" x-text="new Date(w.timestamp).toLocaleDateString()"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div x-show="toast.show" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+            class="fixed bottom-6 right-6 px-5 py-4 rounded-xl border shadow-2xl z-50 flex items-center gap-3 backdrop-blur-xl"
+            :class="toast.type === 'success'
+                ? 'bg-[#0a0a0a]/90 border-emerald-500/30 text-emerald-400'
+                : 'bg-[#0a0a0a]/90 border-red-500/30 text-red-400'">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                :class="toast.type === 'success' ? 'bg-emerald-500/20' : 'bg-red-500/20'">
+                <i :data-lucide="toast.type === 'success' ? 'check-circle' : 'alert-circle'" class="w-5 h-5"></i>
+            </div>
+            <span x-text="toast.message" class="text-sm font-medium"></span>
+        </div>
+
+    </main>
+</div>
+
+<!-- prettier-ignore -->
+<script>
+// @formatter:off
+// DO NOT FORMAT THIS SECTION - Contains Jinja2 template syntax
+function staffPanel() {
+    return {
+        // Server state
+        serverRunning: {{ 'true' if server_status.running else 'false' }},
+        playersOnline: {{ server_status.players_online or 0 }},
+        maxPlayers: {{ server_status.max_players or 20 }},
+        players: {{ online_players | tojson }},
+        loading: false,
+
+        // UI state
+        activeTab: 'players',
+        toast: { show: false, message: '', type: 'info' },
+
+        // Ban form
+        banning: false,
+        banForm: {
+            player: '',
+            duration: '24h',
+            reason: 'Rule violation'
+        },
+
+        // Warn form
+        warning: false,
+        warnForm: {
+            player: '',
+            reason: '',
+            notify: true
+        },
+
+        // Broadcast
+        broadcasting: false,
+        broadcastMessage: '',
+
+        // Logs
+        loadingLogs: false,
+        serverLogs: [],
+        logSearch: '',
+
+        // Whitelist
+        loadingWhitelist: false,
+        whitelist: [],
+        whitelistPlayer: '',
+        whitelistSort: 'az', // 'az', 'za', or 'added'
+
+        // Staff Settings
+        hiddenFeatures: [],
+
+        // CoreProtect Lookup
+        lookupType: 'player',
+        lookupPlayer: '',
+        lookupCoords: { x: 0, y: 64, z: 0, radius: 5 },
+        lookupLoading: false,
+        lookupResults: [],
+
+        // Warnings
+        loadingWarnings: false,
+        warningsList: [],
+        warningLookupPlayer: '',
+        playerWarnings: null,
+
+        init() {
+            lucide.createIcons();
+            this.loadMySettings();
+            setInterval(() => this.refreshStatus(), 5000);
+            // Load initial data for visible tabs
+            this.fetchLogs();
+            this.fetchWarnings();
+            if (this.serverRunning) {
+                this.fetchWhitelist();
+            }
+        },
+
+        openBanModal(player) {
+            this.banForm.player = player;
+            this.activeTab = 'moderation';
+        },
+
+        openWarnModal(player) {
+            this.warnForm.player = player;
+            this.activeTab = 'moderation';
+        },
+
+        async refreshStatus() {
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/status');
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    this.serverRunning = data.server.running;
+                    this.playersOnline = data.server.players_online || 0;
+                    this.maxPlayers = data.server.max_players || 20;
+                }
+
+                if (this.serverRunning) {
+                    const playersRes = await fetch('/minecraft/staff/api/minecraft/players');
+                    const playersData = await playersRes.json();
+                    if (playersData.status === 'ok') {
+                        this.players = playersData.players || [];
+                    }
+                } else {
+                    this.players = [];
+                }
+
+                this.$nextTick(() => lucide.createIcons());
+            } catch (e) {
+                console.error('Status refresh failed:', e);
+            }
+        },
+
+        extractUsername(displayName) {
+            const match = displayName.match(/\[.*?\]\s*(.+)/) || displayName.match(/^(.+)$/);
+            return match ? match[1].trim() : displayName.trim();
+        },
+
+        getAvatarUrls(playerName) {
+            const cleanUsername = this.extractUsername(playerName);
+            return [
+                `https://minotar.net/avatar/${cleanUsername}/40`,
+                `https://mc-heads.net/avatar/${cleanUsername}/40`,
+                `https://minotar.net/avatar/${cleanUsername}/40?t=${Date.now()}`,
+                `https://crafthead.net/avatar/${cleanUsername}/40`,
+                `https://minotar.net/avatar/Steve/40`
+            ];
+        },
+
+        loadAvatarWithRetry(img, playerName) {
+            const urls = this.getAvatarUrls(playerName);
+            let currentIndex = parseInt(img.dataset.urlIndex || '0');
+            if (currentIndex >= urls.length - 1) return;
+            currentIndex++;
+            img.dataset.urlIndex = currentIndex;
+            if (currentIndex > 0) {
+                setTimeout(() => { img.src = urls[currentIndex]; }, 300 * currentIndex);
+            } else {
+                img.src = urls[currentIndex];
+            }
+        },
+
+        async startServer() {
+            if (!confirm('Start the server?')) return;
+            this.loading = true;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/server/start', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast('Server starting...', 'success');
+                    this.serverRunning = true;
+                    let checkCount = 0;
+                    const fastPoll = setInterval(() => {
+                        this.refreshStatus();
+                        checkCount++;
+                        if (checkCount > 10) clearInterval(fastPoll);
+                    }, 2000);
+                } else {
+                    this.showToast('Failed: ' + data.error, 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to start server', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async restartServer() {
+            if (!confirm('Restart the server? Players will be kicked temporarily.')) return;
+            this.loading = true;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/server/restart', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast('Restart command sent!', 'success');
+                } else {
+                    this.showToast('Failed: ' + data.error, 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to restart server', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async tempbanPlayer() {
+            if (!this.banForm.player.trim()) {
+                this.showToast('Enter a player name', 'error');
+                return;
+            }
+            if (!confirm(`Ban ${this.banForm.player} for ${this.banForm.duration}?`)) return;
+            this.banning = true;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/tempban', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.banForm)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast(data.message, 'success');
+                    this.banForm.player = '';
+                    this.banForm.reason = 'Rule violation';
+                    this.refreshStatus();
+                } else {
+                    this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to ban player', 'error');
+            } finally {
+                this.banning = false;
+            }
+        },
+
+        async kickPlayer(player) {
+            if (!confirm(`Kick ${player} from the server?`)) return;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/kick', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player, reason: 'Kicked by staff' })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast(data.message, 'success');
+                    this.refreshStatus();
+                } else {
+                    this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to kick player', 'error');
+            }
+        },
+
+        async warnPlayer() {
+            if (!this.warnForm.player.trim() || !this.warnForm.reason.trim()) {
+                this.showToast('Player name and reason required', 'error');
+                return;
+            }
+            if (!confirm(`Issue warning to ${this.warnForm.player}?`)) return;
+            this.warning = true;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/warn', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.warnForm)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    let msg = data.message;
+                    if (data.escalation_recommendation) {
+                        msg += ` (${data.escalation_recommendation})`;
+                    }
+                    this.showToast(msg, 'success');
+                    this.warnForm.player = '';
+                    this.warnForm.reason = '';
+                    this.fetchWarnings();
+                } else {
+                    this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to issue warning', 'error');
+            } finally {
+                this.warning = false;
+            }
+        },
+
+        async sendBroadcast() {
+            if (!this.broadcastMessage.trim()) return;
+            if (!confirm('Send this broadcast to all players?')) return;
+            this.broadcasting = true;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/broadcast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: this.broadcastMessage })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast('Broadcast sent!', 'success');
+                    this.broadcastMessage = '';
+                } else {
+                    this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to send broadcast', 'error');
+            } finally {
+                this.broadcasting = false;
+            }
+        },
+
+        async fetchLogs() {
+            this.loadingLogs = true;
+            try {
+                let url = '/minecraft/staff/api/minecraft/logs?lines=200';
+                if (this.logSearch.trim()) {
+                    url += `&search=${encodeURIComponent(this.logSearch.trim())}`;
+                }
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    this.serverLogs = data.logs || [];
+                }
+            } catch (e) {
+                console.error('Failed to fetch logs:', e);
+            } finally {
+                this.loadingLogs = false;
+                this.$nextTick(() => lucide.createIcons());
+            }
+        },
+
+        async fetchWhitelist() {
+            if (!this.serverRunning) return;
+            this.loadingWhitelist = true;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/whitelist');
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    this.whitelist = data.players || [];
+                }
+            } catch (e) {
+                console.error('Failed to fetch whitelist:', e);
+            } finally {
+                this.loadingWhitelist = false;
+            }
+        },
+
+        async addToWhitelist() {
+            if (!this.whitelistPlayer.trim()) return;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/whitelist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player: this.whitelistPlayer })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast(data.message, 'success');
+                    this.whitelistPlayer = '';
+                    this.fetchWhitelist();
+                } else {
+                    this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to add to whitelist', 'error');
+            }
+        },
+
+        async removeFromWhitelist(player) {
+            if (!confirm(`Remove ${player} from whitelist?`)) return;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/whitelist/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast(data.message, 'success');
+                    this.fetchWhitelist();
+                } else {
+                    this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to remove from whitelist', 'error');
+            }
+        },
+
+        async performLookup() {
+            this.lookupLoading = true;
+            this.lookupResults = [];
+            try {
+                let url = '/minecraft/staff/api/minecraft/coreprotect/lookup?';
+                if (this.lookupType === 'player') {
+                    url += `player=${encodeURIComponent(this.lookupPlayer)}`;
+                } else {
+                    url += `x=${this.lookupCoords.x}&y=${this.lookupCoords.y}&z=${this.lookupCoords.z}&radius=${this.lookupCoords.radius}`;
+                }
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    this.lookupResults = data.results || [];
+                } else {
+                    this.showToast('Lookup failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to perform lookup', 'error');
+            } finally {
+                this.lookupLoading = false;
+            }
+        },
+
+        async fetchWarnings() {
+            this.loadingWarnings = true;
+            try {
+                const response = await fetch('/minecraft/staff/api/minecraft/warnings?limit=50');
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    this.warningsList = data.warnings || [];
+                }
+            } catch (e) {
+                console.error('Failed to fetch warnings:', e);
+            } finally {
+                this.loadingWarnings = false;
+            }
+        },
+
+        async lookupPlayerWarnings() {
+            if (!this.warningLookupPlayer.trim()) return;
+            try {
+                const response = await fetch(`/minecraft/staff/api/minecraft/warnings/${encodeURIComponent(this.warningLookupPlayer)}`);
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    this.playerWarnings = data;
+                } else {
+                    this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to lookup warnings', 'error');
+            }
+        },
+
+        async loadMySettings() {
+            try {
+                const response = await fetch('/minecraft/staff/api/my-settings');
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    this.hiddenFeatures = data.hidden_features || [];
+                }
+            } catch (e) {
+                console.error('Failed to load settings:', e);
+            }
+        },
+
+        get sortedWhitelist() {
+            if (!this.whitelist || this.whitelist.length === 0) return [];
+            
+            const list = [...this.whitelist];
+            
+            if (this.whitelistSort === 'az') {
+                return list.sort((a, b) => {
+                    const nameA = (a.name || a).toLowerCase();
+                    const nameB = (b.name || b).toLowerCase();
+                    return nameA.localeCompare(nameB);
+                });
+            } else if (this.whitelistSort === 'za') {
+                return list.sort((a, b) => {
+                    const nameA = (a.name || a).toLowerCase();
+                    const nameB = (b.name || b).toLowerCase();
+                    return nameB.localeCompare(nameA);
+                });
+            } else {
+                // 'added' - sort by original index (add order)
+                return list.sort((a, b) => (a.index || 0) - (b.index || 0));
+            }
+        },
+
+        isFeatureVisible(feature) {
+            return !this.hiddenFeatures.includes(feature);
+        },
+
+        showToast(message, type = 'info') {
+            this.toast = { show: true, message, type };
+            this.$nextTick(() => lucide.createIcons());
+            setTimeout(() => this.toast.show = false, 4000);
+        }
+    }
+}
+// @formatter:on
+</script>
+{% endblock %}

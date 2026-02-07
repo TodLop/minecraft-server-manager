@@ -1,0 +1,27 @@
+# Environment & credentials
+.env
+config_files/
+
+# Runtime data
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Java build artifacts
+**/target/
+*.jar
+dependency-reduced-pom.xml
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

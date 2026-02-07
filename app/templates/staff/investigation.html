@@ -1,0 +1,813 @@
+{% extends "base.html" %}
+
+{% block title %}Investigation Dashboard - CORA{% endblock %}
+
+{% block head %}
+<style>
+    .glass-card {
+        background: rgba(10, 10, 15, 0.6);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(168, 85, 247, 0.15);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .glass-card-hover {
+        transition: all 0.3s ease;
+    }
+
+    .glass-card-hover:hover {
+        border-color: rgba(168, 85, 247, 0.3);
+        box-shadow: 0 8px 40px rgba(168, 85, 247, 0.1);
+    }
+
+    .staff-badge {
+        background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+    }
+
+    /* Watchlist level badges */
+    .level-suspicious {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+    }
+    .level-high-priority {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+    }
+    .level-confirmed-cheater {
+        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+        color: white;
+    }
+
+    /* Status badges */
+    .status-pending { background: #6b7280; }
+    .status-approved { background: #10b981; }
+    .status-active { background: #3b82f6; }
+    .status-completed { background: #22c55e; }
+    .status-denied { background: #ef4444; }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-warning {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .btn-danger {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .btn-secondary {
+        background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
+        transition: all 0.2s ease;
+    }
+
+    .input-field {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(71, 85, 105, 0.5);
+        transition: all 0.2s ease;
+    }
+
+    .input-field:focus {
+        border-color: rgba(168, 85, 247, 0.5);
+        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
+    }
+
+    .section-title {
+        position: relative;
+        padding-left: 12px;
+    }
+
+    .section-title::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 70%;
+        background: linear-gradient(180deg, #a855f7, #c084fc);
+        border-radius: 2px;
+    }
+
+    /* Tab styles */
+    .tab-btn {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    .tab-btn.active {
+        background: rgba(168, 85, 247, 0.2);
+        border-color: rgba(168, 85, 247, 0.5);
+        color: #d8b4fe;
+    }
+
+    /* Command output */
+    .command-output {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+        font-size: 0.75rem;
+        white-space: pre-wrap;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .player-row {
+        transition: all 0.2s ease;
+    }
+    .player-row:hover {
+        background: rgba(168, 85, 247, 0.1);
+    }
+
+    /* Toast notification */
+    .toast {
+        animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="investigationDashboard()" x-init="init()"
+    class="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-purple-500/30">
+
+    <!-- Background Pattern -->
+    <div class="fixed inset-0 opacity-30 pointer-events-none">
+        <div class="absolute inset-0"
+            style="background-image: radial-gradient(rgba(168, 85, 247, 0.1) 1px, transparent 1px); background-size: 40px 40px;">
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="fixed top-4 right-4 z-50 space-y-2">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div class="toast glass-card px-4 py-3 rounded-lg flex items-center gap-3"
+                :class="{'border-green-500/30': toast.type === 'success', 'border-red-500/30': toast.type === 'error'}">
+                <i :data-lucide="toast.type === 'success' ? 'check-circle' : 'alert-circle'"
+                    :class="toast.type === 'success' ? 'text-green-400' : 'text-red-400'" class="w-5 h-5"></i>
+                <span x-text="toast.message" class="text-sm"></span>
+            </div>
+        </template>
+    </div>
+
+    <!-- Navbar -->
+    <header class="sticky top-0 z-30 border-b border-purple-500/20 bg-[#0a0a0a]/80 backdrop-blur-xl">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-4">
+                    <a href="/minecraft/staff"
+                        class="group flex items-center justify-center w-10 h-10 rounded-xl bg-[#0a0a0a] hover:bg-slate-800 border border-slate-700/50 transition-all">
+                        <i data-lucide="arrow-left"
+                            class="w-5 h-5 text-slate-400 group-hover:text-white group-hover:-translate-x-0.5 transition-all"></i>
+                    </a>
+                    <div class="flex items-center gap-3">
+                        <div class="staff-badge px-3 py-1.5 rounded-lg">
+                            <span class="text-xs font-bold text-white tracking-wider">INVESTIGATION</span>
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-bold text-white tracking-tight">
+                                Investigation Dashboard
+                            </h1>
+                            <p class="text-xs text-slate-500">Player Monitoring & Investigation</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4 text-sm text-slate-400">
+                    <span>{{ user_info.email }}</span>
+                    {% if is_admin %}
+                    <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 text-xs">ADMIN</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- Stats Row -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="glass-card rounded-xl p-4">
+                <div class="text-2xl font-bold text-amber-400">{{ watchlist_stats.suspicious }}</div>
+                <div class="text-xs text-slate-500">Suspicious</div>
+            </div>
+            <div class="glass-card rounded-xl p-4">
+                <div class="text-2xl font-bold text-red-400">{{ watchlist_stats.high_priority }}</div>
+                <div class="text-xs text-slate-500">High Priority</div>
+            </div>
+            <div class="glass-card rounded-xl p-4">
+                <div class="text-2xl font-bold text-red-600">{{ watchlist_stats.confirmed_cheaters }}</div>
+                <div class="text-xs text-slate-500">Confirmed Cheaters</div>
+            </div>
+            <div class="glass-card rounded-xl p-4">
+                <div class="text-2xl font-bold text-purple-400">{{ watchlist_stats.total_active }}</div>
+                <div class="text-xs text-slate-500">Total Active</div>
+            </div>
+        </div>
+
+        <!-- Back to Main Panel -->
+        <div class="mb-4">
+            <a href="/minecraft/staff" class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-purple-400 transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                Back to Main Panel
+            </a>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="flex gap-2 mb-6 border-b border-slate-700/50 pb-4">
+            <button @click="activeTab = 'watchlist'" class="tab-btn px-4 py-2 rounded-lg border border-slate-700/50 text-sm"
+                :class="{'active': activeTab === 'watchlist'}">
+                <i data-lucide="eye" class="w-4 h-4 inline mr-2"></i>Watchlist
+            </button>
+            <button @click="activeTab = 'session'" class="tab-btn px-4 py-2 rounded-lg border border-slate-700/50 text-sm"
+                :class="{'active': activeTab === 'session'}">
+                <i data-lucide="search" class="w-4 h-4 inline mr-2"></i>My Session
+            </button>
+            <button @click="activeTab = 'lookup'" class="tab-btn px-4 py-2 rounded-lg border border-slate-700/50 text-sm"
+                :class="{'active': activeTab === 'lookup'}">
+                <i data-lucide="user-search" class="w-4 h-4 inline mr-2"></i>Player Lookup
+            </button>
+            <button @click="activeTab = 'spectator'" class="tab-btn px-4 py-2 rounded-lg border border-slate-700/50 text-sm"
+                :class="{'active': activeTab === 'spectator'}">
+                <i data-lucide="video" class="w-4 h-4 inline mr-2"></i>Spectator
+            </button>
+        </div>
+
+        <!-- Watchlist Tab -->
+        <div x-show="activeTab === 'watchlist'" x-cloak>
+            <div class="glass-card rounded-xl p-6">
+                <h2 class="section-title text-lg font-semibold text-white mb-4">Active Watchlist</h2>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-slate-500 border-b border-slate-700/50">
+                                <th class="py-3 px-2">Player</th>
+                                <th class="py-3 px-2">Level</th>
+                                <th class="py-3 px-2">Reason</th>
+                                <th class="py-3 px-2">Tags</th>
+                                <th class="py-3 px-2">Added</th>
+                                <th class="py-3 px-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in watchlist_entries %}
+                            <tr class="player-row border-b border-slate-700/30">
+                                <td class="py-3 px-2 font-medium text-white">{{ entry.player }}</td>
+                                <td class="py-3 px-2">
+                                    <span class="px-2 py-1 rounded text-xs font-medium level-{{ entry.level }}">
+                                        {{ entry.level }}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-2 max-w-xs truncate">{{ entry.reason }}</td>
+                                <td class="py-3 px-2">
+                                    {% for tag in entry.tags[:3] %}
+                                    <span class="px-1.5 py-0.5 rounded text-xs bg-slate-700/50 mr-1">{{ tag }}</span>
+                                    {% endfor %}
+                                </td>
+                                <td class="py-3 px-2 text-slate-500">{{ entry.added_at[:10] }}</td>
+                                <td class="py-3 px-2">
+                                    <div class="flex gap-1 flex-wrap">
+                                        <button @click="startInvestigation('{{ entry.player }}')"
+                                            class="btn-primary px-3 py-1 rounded text-xs text-white">
+                                            Investigate
+                                        </button>
+                                        <button @click="quickSpectateRequest('{{ entry.player }}', '{{ entry.level }}')"
+                                            class="btn-secondary px-2 py-1 rounded text-xs text-white"
+                                            title="Request Spectate">
+                                            <i data-lucide="video" class="w-3 h-3"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="py-8 text-center text-slate-500">
+                                    No players on watchlist
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Tab -->
+        <div x-show="activeTab === 'session'" x-cloak>
+            <div class="glass-card rounded-xl p-6">
+                <h2 class="section-title text-lg font-semibold text-white mb-4">Current Investigation Session</h2>
+
+                {% if active_investigation %}
+                <div class="mb-6 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <span class="text-slate-400 text-sm">Investigating:</span>
+                            <span class="text-white font-bold text-lg ml-2">{{ active_investigation.player }}</span>
+                        </div>
+                        <span class="px-2 py-1 rounded text-xs bg-blue-500 text-white">ACTIVE</span>
+                    </div>
+                    <div class="text-xs text-slate-500 mb-4">Started: {{ active_investigation.started_at }}</div>
+
+                    <!-- Investigation Tools -->
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <button @click="runGrimac('{{ active_investigation.player }}')"
+                            class="btn-secondary px-4 py-2 rounded-lg text-white text-sm">
+                            <i data-lucide="shield-check" class="w-4 h-4 inline mr-2"></i>GrimAC History
+                        </button>
+                        <button @click="runMtrack('{{ active_investigation.player }}')"
+                            class="btn-secondary px-4 py-2 rounded-lg text-white text-sm">
+                            <i data-lucide="activity" class="w-4 h-4 inline mr-2"></i>mTrack Check
+                        </button>
+                    </div>
+
+                    <!-- Command Output -->
+                    <div x-show="commandOutput" class="mb-4">
+                        <div class="text-xs text-slate-500 mb-2">Command Output:</div>
+                        <div class="command-output text-green-400" x-text="commandOutput"></div>
+                    </div>
+
+                    <!-- End Session Form -->
+                    <div class="border-t border-slate-700/50 pt-4 mt-4">
+                        <h3 class="text-sm font-medium text-slate-300 mb-3">End Investigation</h3>
+                        <div class="space-y-3">
+                            <textarea x-model="findings" placeholder="Enter your findings..."
+                                class="input-field w-full px-3 py-2 rounded-lg text-white text-sm" rows="3"></textarea>
+                            <div class="flex items-center gap-3">
+                                <select x-model="recommendation"
+                                    class="input-field px-3 py-2 rounded-lg text-white text-sm">
+                                    <option value="watch">Continue Watching</option>
+                                    <option value="warn">Recommend Warning</option>
+                                    <option value="ban">Recommend Ban</option>
+                                    <option value="clear">Clear - No Issues</option>
+                                </select>
+                                <button @click="endInvestigation('{{ active_investigation.id }}')"
+                                    class="btn-primary px-4 py-2 rounded-lg text-white text-sm flex-shrink-0">
+                                    Submit & End
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-8 text-slate-500">
+                    <i data-lucide="search" class="w-12 h-12 mx-auto mb-4 opacity-30"></i>
+                    <p>No active investigation</p>
+                    <p class="text-xs mt-2">Select a player from the Watchlist to start</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Lookup Tab -->
+        <div x-show="activeTab === 'lookup'" x-cloak>
+            <div class="glass-card rounded-xl p-6">
+                <h2 class="section-title text-lg font-semibold text-white mb-4">Player Lookup</h2>
+
+                <div class="flex gap-3 mb-6">
+                    <input type="text" x-model="lookupPlayer" placeholder="Enter player name..."
+                        class="input-field flex-1 px-4 py-2 rounded-lg text-white"
+                        @keyup.enter="lookupPlayerInfo()">
+                    <button @click="lookupPlayerInfo()" class="btn-primary px-6 py-2 rounded-lg text-white">
+                        Search
+                    </button>
+                </div>
+
+                <!-- Lookup Results -->
+                <div x-show="lookupResult" class="space-y-4">
+                    <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                        <h3 class="font-medium text-white mb-3" x-text="lookupPlayer"></h3>
+
+                        <!-- Watchlist Status -->
+                        <div class="mb-4">
+                            <span class="text-slate-500 text-sm">Watchlist Status: </span>
+                            <span x-show="lookupResult.watchlisted" class="text-red-400 font-medium">On Watchlist</span>
+                            <span x-show="!lookupResult.watchlisted" class="text-green-400 font-medium">Not Watchlisted</span>
+                        </div>
+
+                        <!-- Notes -->
+                        <div x-show="lookupResult.notes && lookupResult.notes.length > 0">
+                            <h4 class="text-sm font-medium text-slate-400 mb-2">Notes:</h4>
+                            <template x-for="note in lookupResult.notes" :key="note.id">
+                                <div class="p-3 rounded bg-slate-900/50 mb-2">
+                                    <p class="text-sm text-slate-300" x-text="note.content"></p>
+                                    <p class="text-xs text-slate-500 mt-1">
+                                        <span x-text="note.author_name"></span> - <span x-text="note.created_at.slice(0, 10)"></span>
+                                    </p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Add Note -->
+                        <div class="mt-4 pt-4 border-t border-slate-700/50">
+                            <h4 class="text-sm font-medium text-slate-400 mb-2">Add Note</h4>
+                            <textarea x-model="newNote" placeholder="Add a note about this player..."
+                                class="input-field w-full px-3 py-2 rounded-lg text-white text-sm mb-2" rows="2"></textarea>
+                            <select x-model="noteCategory" class="input-field px-3 py-1 rounded text-sm text-white mb-2">
+                                <option value="general">General</option>
+                                <option value="behavior">Behavior</option>
+                                <option value="investigation">Investigation</option>
+                                <option value="ban-related">Ban Related</option>
+                            </select>
+                            <button @click="addNote()" class="btn-secondary px-4 py-1.5 rounded text-white text-sm ml-2">
+                                Add Note
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spectator Tab -->
+        <div x-show="activeTab === 'spectator'" x-cloak>
+            <div class="glass-card rounded-xl p-6">
+                <h2 class="section-title text-lg font-semibold text-white mb-4">Spectator Sessions</h2>
+
+                <!-- Request Spectator Form -->
+                <div class="mb-6 p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <h3 class="text-sm font-medium text-slate-300 mb-3">Request Spectator Access</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input type="text" x-model="spectatorPlayer" list="staff-player-autocomplete" placeholder="Player to spectate..."
+                            class="input-field px-3 py-2 rounded-lg text-white text-sm">
+                        <input type="text" x-model="spectatorReason" placeholder="Reason..."
+                            class="input-field px-3 py-2 rounded-lg text-white text-sm">
+                    </div>
+                    <div class="flex items-center gap-3 mt-3">
+                        <select x-model="spectatorDuration" class="input-field px-3 py-2 rounded-lg text-white text-sm">
+                            <option value="15">15 minutes</option>
+                            <option value="30">30 minutes</option>
+                            <option value="45">45 minutes</option>
+                            <option value="60">60 minutes</option>
+                        </select>
+                        <button @click="requestSpectator()"
+                            class="btn-primary px-4 py-2 rounded-lg text-white text-sm">
+                            Request Access
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2">
+                        * Requests for confirmed cheaters are auto-approved
+                    </p>
+                </div>
+
+                <!-- Approved Sessions -->
+                <div x-show="approvedSessions.length > 0" class="mb-6">
+                    <h3 class="text-sm font-medium text-slate-400 mb-3">Ready to Start</h3>
+                    <template x-for="session in approvedSessions" :key="session.id">
+                        <div class="p-3 rounded-lg bg-green-500/10 border border-green-500/30 mb-2 flex items-center justify-between">
+                            <div>
+                                <span class="text-white font-medium" x-text="session.player"></span>
+                                <span class="text-xs text-slate-500 ml-2" x-text="session.max_duration_minutes + ' min'"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" x-model="myMinecraftName" placeholder="Your MC name"
+                                    class="input-field px-2 py-1 rounded text-xs w-32">
+                                <button @click="startSpectator(session.id)"
+                                    class="btn-primary px-3 py-1 rounded text-xs text-white">
+                                    Start
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- My Sessions History -->
+                <h3 class="text-sm font-medium text-slate-400 mb-3">My Sessions</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-slate-500 border-b border-slate-700/50">
+                                <th class="py-2 px-2">Player</th>
+                                <th class="py-2 px-2">Status</th>
+                                <th class="py-2 px-2">Requested</th>
+                                <th class="py-2 px-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for session in my_spectator_sessions %}
+                            <tr class="border-b border-slate-700/30">
+                                <td class="py-2 px-2 text-white">{{ session.player }}</td>
+                                <td class="py-2 px-2">
+                                    <span class="px-2 py-0.5 rounded text-xs status-{{ session.status }}">
+                                        {{ session.status }}
+                                    </span>
+                                </td>
+                                <td class="py-2 px-2 text-slate-500">{{ session.requested_at[:10] }}</td>
+                                <td class="py-2 px-2">
+                                    {% if session.status == 'active' %}
+                                    <button @click="endSpectator('{{ session.id }}')"
+                                        class="btn-danger px-2 py-1 rounded text-xs text-white">
+                                        End
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="py-4 text-center text-slate-500">No spectator sessions</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Player Autocomplete Datalist -->
+    <datalist id="staff-player-autocomplete">
+        <template x-for="player in whitelistPlayers" :key="player">
+            <option :value="player"></option>
+        </template>
+    </datalist>
+</div>
+
+<script>
+function investigationDashboard() {
+    return {
+        activeTab: 'watchlist',
+        toasts: [],
+        commandOutput: '',
+        findings: '',
+        recommendation: 'watch',
+        lookupPlayer: '',
+        lookupResult: null,
+        newNote: '',
+        noteCategory: 'general',
+        spectatorPlayer: '',
+        spectatorReason: '',
+        spectatorDuration: '15',
+        approvedSessions: [],
+        myMinecraftName: '',
+        whitelistPlayers: [],
+
+        init() {
+            this.loadApprovedSessions();
+            this.loadWhitelistAutocomplete();
+            setInterval(() => this.loadApprovedSessions(), 10000);
+        },
+
+        showToast(message, type = 'success') {
+            const id = Date.now();
+            this.toasts.push({ id, message, type });
+            setTimeout(() => {
+                this.toasts = this.toasts.filter(t => t.id !== id);
+            }, 4000);
+        },
+
+        async startInvestigation(player) {
+            try {
+                const response = await fetch('/minecraft/staff/api/investigation/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast(`Investigation started for ${player}`);
+                    this.activeTab = 'session';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    this.showToast(data.error || 'Failed to start investigation', 'error');
+                }
+            } catch (e) {
+                this.showToast('Error starting investigation', 'error');
+            }
+        },
+
+        async runGrimac(player) {
+            this.commandOutput = 'Running grimac history...';
+            try {
+                const response = await fetch(`/minecraft/staff/api/investigation/grimac/${player}`);
+                const data = await response.json();
+                this.commandOutput = data.response || data.error || 'No response';
+            } catch (e) {
+                this.commandOutput = 'Error executing command';
+            }
+        },
+
+        async runMtrack(player) {
+            this.commandOutput = 'Running mtrack check...';
+            try {
+                const response = await fetch(`/minecraft/staff/api/investigation/mtrack/${player}`);
+                const data = await response.json();
+                this.commandOutput = data.response || data.error || 'No response';
+            } catch (e) {
+                this.commandOutput = 'Error executing command';
+            }
+        },
+
+        async endInvestigation(sessionId) {
+            if (!this.findings.trim()) {
+                this.showToast('Please enter findings', 'error');
+                return;
+            }
+            try {
+                const response = await fetch(`/minecraft/staff/api/investigation/${sessionId}/end`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        findings: this.findings,
+                        recommendation: this.recommendation
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast('Investigation completed');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    this.showToast(data.error || 'Failed to end investigation', 'error');
+                }
+            } catch (e) {
+                this.showToast('Error ending investigation', 'error');
+            }
+        },
+
+        async lookupPlayerInfo() {
+            if (!this.lookupPlayer.trim()) return;
+            try {
+                const [watchlistRes, notesRes] = await Promise.all([
+                    fetch(`/minecraft/staff/api/watchlist/check/${this.lookupPlayer}`),
+                    fetch(`/minecraft/staff/api/notes/${this.lookupPlayer}`)
+                ]);
+                const watchlistData = await watchlistRes.json();
+                const notesData = await notesRes.json();
+
+                this.lookupResult = {
+                    watchlisted: watchlistData.watchlisted,
+                    entry: watchlistData.entry,
+                    notes: notesData.notes || []
+                };
+            } catch (e) {
+                this.showToast('Error looking up player', 'error');
+            }
+        },
+
+        async addNote() {
+            if (!this.lookupPlayer || !this.newNote.trim()) {
+                this.showToast('Enter note content', 'error');
+                return;
+            }
+            try {
+                const response = await fetch('/minecraft/staff/api/notes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player: this.lookupPlayer,
+                        content: this.newNote,
+                        category: this.noteCategory
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast('Note added');
+                    this.newNote = '';
+                    this.lookupPlayerInfo();
+                } else {
+                    this.showToast(data.error || 'Failed to add note', 'error');
+                }
+            } catch (e) {
+                this.showToast('Error adding note', 'error');
+            }
+        },
+
+        async requestSpectator() {
+            if (!this.spectatorPlayer || !this.spectatorReason) {
+                this.showToast('Enter player and reason', 'error');
+                return;
+            }
+            try {
+                const response = await fetch('/minecraft/staff/api/spectator/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player: this.spectatorPlayer,
+                        reason: this.spectatorReason,
+                        duration_minutes: parseInt(this.spectatorDuration)
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast(data.message);
+                    this.spectatorPlayer = '';
+                    this.spectatorReason = '';
+                    this.loadApprovedSessions();
+                } else {
+                    this.showToast(data.error || 'Failed to request', 'error');
+                }
+            } catch (e) {
+                this.showToast('Error requesting spectator', 'error');
+            }
+        },
+
+        async loadApprovedSessions() {
+            try {
+                const response = await fetch('/minecraft/staff/api/spectator/approved');
+                const data = await response.json();
+                this.approvedSessions = data.sessions || [];
+            } catch (e) {
+                console.error('Error loading approved sessions', e);
+            }
+        },
+
+        async startSpectator(sessionId) {
+            if (!this.myMinecraftName.trim()) {
+                this.showToast('Enter your Minecraft name', 'error');
+                return;
+            }
+            try {
+                const response = await fetch(`/minecraft/staff/api/spectator/${sessionId}/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ minecraft_name: this.myMinecraftName })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast(data.message);
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    this.showToast(data.error || 'Failed to start', 'error');
+                }
+            } catch (e) {
+                this.showToast('Error starting spectator session', 'error');
+            }
+        },
+
+        async endSpectator(sessionId) {
+            try {
+                const response = await fetch(`/minecraft/staff/api/spectator/${sessionId}/end`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ minecraft_name: this.myMinecraftName })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast('Session ended');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    this.showToast(data.error || 'Failed to end session', 'error');
+                }
+            } catch (e) {
+                this.showToast('Error ending session', 'error');
+            }
+        },
+
+        async loadWhitelistAutocomplete() {
+            try {
+                const response = await fetch('/minecraft/staff/api/whitelist/autocomplete');
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    this.whitelistPlayers = data.players || [];
+                }
+            } catch (e) {
+                console.error('Failed to load whitelist autocomplete:', e);
+            }
+        },
+
+        async quickSpectateRequest(player, level) {
+            const reason = level === 'confirmed-cheater' ? 'Confirmed cheater observation' : 'Investigation needed';
+            const duration = level === 'confirmed-cheater' ? 30 : 15;
+
+            try {
+                const response = await fetch('/minecraft/staff/api/spectator/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player: player,
+                        reason: reason,
+                        duration_minutes: duration
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.showToast(data.message || 'Spectator request created');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    this.showToast(data.error || 'Failed to request spectate', 'error');
+                }
+            } catch (e) {
+                this.showToast('Error creating spectate request', 'error');
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

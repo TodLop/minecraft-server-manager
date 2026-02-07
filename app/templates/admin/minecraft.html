@@ -1,0 +1,2734 @@
+{% extends "base.html" %}
+
+{% block title %}Minecraft Server - Admin{% endblock %}
+
+{% block content %}
+<div x-data="minecraftAdmin()" x-init="init()" class="min-h-screen bg-[#050505]">
+    <!-- Compact Header -->
+    <header class="border-b border-green-500/20 bg-[#0a0a0a]/80 backdrop-blur-sm sticky top-0 z-10">
+        <div class="max-w-[1600px] mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <a href="/" class="text-slate-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                    </a>
+                    <h1 class="font-orbitron text-xl text-white">
+                        <span class="text-green-400">MINECRAFT</span> SERVER
+                    </h1>
+                    <span class="px-2.5 py-1 text-sm bg-green-500/20 text-green-300 rounded-full border border-green-500/30">
+                        v{{ versions_data.minecraft_version or '1.21.1' }}
+                    </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="/minecraft/admin/log"
+                        class="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg border border-purple-500/30 transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Log
+                    </a>
+                    <a href="/minecraft/admin/console"
+                        class="px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg border border-cyan-500/30 transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Console
+                    </a>
+                    <a href="/minecraft/plugins" x-data="{ unreadCount: 0 }" x-init="fetch('/minecraft/plugins/api/notifications/unread').then(r => r.json()).then(d => unreadCount = d.count || 0)"
+                        class="relative px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 rounded-lg border border-indigo-500/30 transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Plugin Docs
+                        <span x-show="unreadCount > 0" x-text="unreadCount < 10 ? unreadCount : '9+'"
+                            class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center"></span>
+                    </a>
+                    <button @click="checkUpdates()" :disabled="checking"
+                        class="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30 transition-all disabled:opacity-50">
+                        <span x-text="checking ? 'Checking...' : 'Check Updates'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-[1600px] mx-auto px-4 py-3">
+        <!-- Server Status Bar -->
+        <div class="glass-panel rounded-lg p-3 border border-green-500/20 mb-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+                        </svg>
+                    </div>
+                    <span class="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0a0a]
+                        {% if server_status.running %}bg-green-500 animate-pulse{% else %}bg-red-500{% endif %}"></span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold text-white">Status</span>
+                        <span class="px-2.5 py-1 text-sm rounded-full
+                            {% if server_status.running %}bg-green-500/20 text-green-400 border border-green-500/30
+                            {% else %}bg-red-500/20 text-red-400 border border-red-500/30{% endif %}">
+                            {% if server_status.running %}ONLINE{% else %}OFFLINE{% endif %}
+                        </span>
+                    </div>
+                    <p class="text-sm text-slate-400">
+                        Paper {{ server_status.paper_jar or 'Unknown' }} | {{ server_status.plugins_count }} plugins |
+                        <span :class="serverRunning ? 'text-green-400' : 'text-slate-500'"
+                              x-text="serverRunning ? `${playersOnline}/${maxPlayers} players` : 'Server stopped'">
+                        </span>
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <template x-if="updateResults">
+                    <div class="text-sm px-3 py-1.5 rounded-lg border font-medium"
+                        :class="updateResults.updates_available > 0 ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300' : 'bg-green-500/10 border-green-500/30 text-green-300'">
+                        <span x-text="updateResults.updates_available > 0 ? `${updateResults.updates_available} update(s)` : 'Up to date'"></span>
+                    </div>
+                </template>
+                <!-- Server Control Buttons -->
+                <button @click="startServer()" :disabled="serverRunning || loading"
+                    class="px-3 py-1.5 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30 disabled:opacity-50 transition-all">
+                    <span x-text="loading && !serverRunning ? '...' : 'Start'"></span>
+                </button>
+                <button @click="restartServer()" :disabled="loading"
+                    class="px-3 py-1.5 text-sm bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg border border-orange-500/30 disabled:opacity-50 transition-all">
+                    Restart
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="flex flex-wrap gap-2 mb-3">
+            <button @click="activeTab = 'overview'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'overview' ? 'bg-green-500/20 border-green-500/50 text-green-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Overview
+            </button>
+            <button @click="activeTab = 'players'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'players' ? 'bg-green-500/20 border-green-500/50 text-green-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Players
+            </button>
+            <button @click="activeTab = 'moderation'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'moderation' ? 'bg-green-500/20 border-green-500/50 text-green-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Moderation
+            </button>
+            <button @click="activeTab = 'logs'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'logs' ? 'bg-green-500/20 border-green-500/50 text-green-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Logs
+            </button>
+            <button @click="activeTab = 'whitelist'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'whitelist' ? 'bg-green-500/20 border-green-500/50 text-green-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Whitelist
+            </button>
+            <button @click="activeTab = 'lookup'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'lookup' ? 'bg-green-500/20 border-green-500/50 text-green-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                CoreProtect
+            </button>
+            <button @click="activeTab = 'warnings'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'warnings' ? 'bg-green-500/20 border-green-500/50 text-green-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Warnings
+            </button>
+            <button @click="activeTab = 'watchlist'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'watchlist' ? 'bg-amber-500/20 border-amber-500/50 text-amber-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Watchlist
+            </button>
+            <button @click="activeTab = 'spectator'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all relative"
+                :class="activeTab === 'spectator' ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Spectator
+                <span x-show="pendingSpectatorCount > 0" x-text="pendingSpectatorCount"
+                    class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center"></span>
+            </button>
+            <button @click="activeTab = 'settings'"
+                class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+                :class="activeTab === 'settings' ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
+                Staff Settings
+            </button>
+        </div>
+
+        <!-- ==================== OVERVIEW TAB ==================== -->
+        <div x-show="activeTab === 'overview'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <!-- LEFT COLUMN: Plugins -->
+                <div class="space-y-3">
+                    <!-- Plugins Grid -->
+                    <div class="glass-panel rounded-lg p-3 border border-slate-700/30">
+                        <h3 class="font-orbitron text-lg text-white mb-2 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                            Tracked Plugins
+                        </h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            {% for plugin_id, plugin in versions_data.plugins.items() %}
+                            <div class="p-2.5 rounded-lg bg-[#0a0a0a] border border-slate-700/30 hover:border-green-500/30 transition-all">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="w-10 h-10 rounded flex items-center justify-center font-bold text-white
+                                        {% if plugin_id == 'paper' %}bg-gradient-to-br from-slate-600 to-slate-700
+                                        {% elif plugin_id == 'grimac' %}bg-gradient-to-br from-red-500 to-red-700
+                                        {% elif plugin_id == 'viaversion' %}bg-gradient-to-br from-blue-500 to-blue-700
+                                        {% elif plugin_id == 'geyser' %}bg-gradient-to-br from-orange-500 to-orange-700
+                                        {% elif plugin_id == 'auctionhouseplus' %}bg-gradient-to-br from-yellow-500 to-amber-700
+                                        {% else %}bg-gradient-to-br from-purple-500 to-purple-700{% endif %}">
+                                        {{ plugin_id[:2].upper() }}
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h4 class="font-semibold text-white truncate capitalize">{{ plugin_id }}</h4>
+                                        <p class="text-sm text-slate-400">{{ plugin.source }}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="font-mono text-green-400">v{{ plugin.full_version or plugin.current_version }}</p>
+                                    <template x-if="getPluginUpdate('{{ plugin_id }}')">
+                                        <p class="text-sm text-yellow-400" x-text="'v' + (getPluginUpdate('{{ plugin_id }}').latest_full_version || getPluginUpdate('{{ plugin_id }}').latest_version)"></p>
+                                    </template>
+                                </div>
+                                <div class="flex gap-1.5">
+                                    <button @click="viewChangelog('{{ plugin_id }}')"
+                                        class="flex-1 px-2 py-1.5 text-sm bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded transition-colors">
+                                        Changelog
+                                    </button>
+                                    <template x-if="getPluginUpdate('{{ plugin_id }}')">
+                                        <button @click="applyUpdate('{{ plugin_id }}')" :disabled="updating === '{{ plugin_id }}'"
+                                            class="flex-1 px-2 py-1.5 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded border border-green-500/30 disabled:opacity-50">
+                                            <span x-text="updating === '{{ plugin_id }}' ? '...' : 'Update'"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT COLUMN: Automation & Logs -->
+                <div class="space-y-3">
+                    <!-- Reboot Automation -->
+                    <div class="glass-panel rounded-lg p-3 border border-slate-700/30">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                                <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Reboot Automation
+                            </h3>
+                            <span class="px-2.5 py-1 rounded-lg font-medium ring-1"
+                                  :class="scheduler.status.state === 'disabled' ? 'bg-slate-800/80 text-slate-400 ring-slate-700/50' :
+                                          scheduler.status.state === 'monitoring' ? 'bg-green-500/20 text-green-400 ring-green-500/30' :
+                                          scheduler.status.state.startsWith('countdown') ? 'bg-orange-500/20 text-orange-400 ring-orange-500/30 animate-pulse' :
+                                          'bg-red-500/20 text-red-400 ring-red-500/30'"
+                                  x-text="scheduler.status.state.replace('_', ' ').toUpperCase()">
+                            </span>
+                        </div>
+
+                        <!-- Compact Status Grid -->
+                        <div class="grid grid-cols-3 gap-2 mb-2">
+                            <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <p class="text-sm text-slate-400 mb-1">UPTIME</p>
+                                <p class="text-lg font-semibold text-white" x-text="scheduler.status.uptime_formatted || '--'"></p>
+                                <p class="text-sm text-slate-500">Max: <span x-text="scheduler.config.max_uptime_hours + 'h'"></span></p>
+                            </div>
+                            <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <p class="text-sm text-slate-400 mb-1">EMPTY</p>
+                                <p class="text-lg font-semibold text-white" x-text="scheduler.status.empty_formatted || '--'"></p>
+                                <p class="text-sm text-slate-500">Max: <span x-text="scheduler.config.empty_hours_threshold + 'h'"></span></p>
+                            </div>
+                            <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <p class="text-sm text-slate-400 mb-1">NEXT</p>
+                                <p class="text-sm font-medium text-white truncate" x-text="scheduler.status.next_action || 'Monitoring'"></p>
+                                <p class="text-sm text-orange-400" x-show="scheduler.status.countdown_remaining_seconds > 0"
+                                   x-text="scheduler.status.countdown_formatted"></p>
+                            </div>
+                        </div>
+
+                        <!-- Countdown Alert -->
+                        <template x-if="scheduler.status.state.startsWith('countdown')">
+                            <div class="mb-2 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-full bg-orange-500/20 flex items-center justify-center animate-pulse">
+                                        <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    </div>
+                                    <p class="text-sm text-orange-300 font-semibold">Restart in <span x-text="scheduler.status.countdown_formatted"></span></p>
+                                </div>
+                                <button @click="cancelCountdown()" class="px-3 py-1.5 text-sm bg-slate-700/50 hover:bg-slate-700 text-white rounded">
+                                    Cancel
+                                </button>
+                            </div>
+                        </template>
+
+                        <!-- Compact Config -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <p class="text-sm font-medium text-white">Enable Automation</p>
+                                <button @click="toggleScheduler()" class="relative w-11 h-6 rounded-full transition-colors"
+                                        :class="scheduler.config.enabled ? 'bg-green-500' : 'bg-slate-600'">
+                                    <span class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+                                          :class="scheduler.config.enabled ? 'translate-x-5' : ''"></span>
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                    <div class="flex items-center gap-1.5 mb-1.5">
+                                        <input type="checkbox" id="empty_enabled" :checked="scheduler.config.empty_server_enabled"
+                                               @change="updateConfig({empty_server_enabled: $event.target.checked})"
+                                               :disabled="!scheduler.config.enabled"
+                                               class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-yellow-500">
+                                        <label for="empty_enabled" class="text-sm font-medium text-white">Empty Restart</label>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" min="1" max="24" step="0.5"
+                                               :value="scheduler.config.empty_hours_threshold"
+                                               @change="updateConfig({empty_hours_threshold: parseFloat($event.target.value)})"
+                                               :disabled="!scheduler.config.enabled"
+                                               class="w-16 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white">
+                                        <span class="text-xs text-slate-400">hours</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                    <div class="flex items-center gap-1.5 mb-1.5">
+                                        <input type="checkbox" id="uptime_enabled" :checked="scheduler.config.uptime_restart_enabled"
+                                               @change="updateConfig({uptime_restart_enabled: $event.target.checked})"
+                                               :disabled="!scheduler.config.enabled"
+                                               class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500">
+                                        <label for="uptime_enabled" class="text-sm font-medium text-white">Uptime Restart</label>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" min="1" max="48"
+                                               :value="scheduler.config.max_uptime_hours"
+                                               @change="updateConfig({max_uptime_hours: parseFloat($event.target.value)})"
+                                               :disabled="!scheduler.config.enabled"
+                                               class="w-16 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white">
+                                        <span class="text-xs text-slate-400">hours</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button @click="triggerManualRestart()"
+                                        :disabled="!serverRunning || scheduler.status.state.startsWith('countdown')"
+                                        class="flex-1 px-3 py-2 text-sm bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg border border-orange-500/30 disabled:opacity-50">
+                                    Manual Restart
+                                </button>
+                                <button @click="refreshSchedulerStatus()" class="px-3 py-2 text-sm bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CoreProtect Maintenance -->
+                    <div class="glass-panel rounded-lg p-3 border border-slate-700/30">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                CoreProtect Maintenance
+                            </h3>
+                            <span class="px-2.5 py-1 rounded-lg font-medium ring-1"
+                                  :class="coreprotect.enabled ? 'bg-purple-500/20 text-purple-400 ring-purple-500/30' : 'bg-slate-800/80 text-slate-400 ring-slate-700/50'"
+                                  x-text="coreprotect.enabled ? 'ENABLED' : 'DISABLED'">
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <p class="text-sm text-slate-400 mb-1">LAST PURGE</p>
+                                <p class="text-lg font-semibold text-white" x-text="coreprotect.last_purge ? formatDate(coreprotect.last_purge) : 'Never'"></p>
+                            </div>
+                            <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <p class="text-sm text-slate-400 mb-1">NEXT PURGE</p>
+                                <p class="text-lg font-semibold text-white" x-text="coreprotect.next_purge ? formatDate(coreprotect.next_purge) : '--'"></p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                <p class="text-sm font-medium text-white">Enable Auto-Purge</p>
+                                <button @click="toggleCoreprotect()" class="relative w-11 h-6 rounded-full transition-colors"
+                                        :class="coreprotect.enabled ? 'bg-purple-500' : 'bg-slate-600'">
+                                    <span class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+                                          :class="coreprotect.enabled ? 'translate-x-5' : ''"></span>
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                    <label class="text-sm font-medium text-white block mb-1">Retention Days</label>
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" min="7" max="90"
+                                               :value="coreprotect.retention_days"
+                                               @change="updateCoreprotectConfig({coreprotect_retention_days: parseInt($event.target.value)})"
+                                               :disabled="!coreprotect.enabled"
+                                               class="w-16 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white disabled:opacity-50">
+                                        <span class="text-xs text-slate-400">days</span>
+                                    </div>
+                                </div>
+
+                                <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                    <label class="text-sm font-medium text-white block mb-1">Purge Hour</label>
+                                    <div class="flex items-center gap-1">
+                                        <input type="number" min="0" max="23"
+                                               :value="coreprotect.purge_hour"
+                                               @change="updateCoreprotectConfig({coreprotect_purge_hour: parseInt($event.target.value)})"
+                                               :disabled="!coreprotect.enabled"
+                                               class="w-16 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white disabled:opacity-50">
+                                        <span class="text-xs text-slate-400">:00</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button @click="triggerPurge()"
+                                    :disabled="!serverRunning || coreprotect.purge_running"
+                                    class="w-full px-3 py-2 text-sm bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg border border-purple-500/30 disabled:opacity-50 flex items-center justify-center gap-2">
+                                <svg x-show="!coreprotect.purge_running" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <svg x-show="coreprotect.purge_running" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <span x-text="coreprotect.purge_running ? 'Purging...' : 'Purge Now'"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Combined Logs (Tabbed) -->
+                    <div class="glass-panel rounded-lg p-3 border border-slate-700/30" x-data="{ logTab: 'scheduler' }">
+                        <div class="flex items-center gap-3 mb-2">
+                            <button @click="logTab = 'scheduler'"
+                                    :class="logTab === 'scheduler' ? 'text-white border-green-500/50' : 'text-slate-400 border-transparent'"
+                                    class="font-semibold pb-1.5 border-b-2 transition-colors">
+                                Scheduler Logs
+                            </button>
+                            <button @click="logTab = 'updates'"
+                                    :class="logTab === 'updates' ? 'text-white border-green-500/50' : 'text-slate-400 border-transparent'"
+                                    class="font-semibold pb-1.5 border-b-2 transition-colors">
+                                Update Logs
+                            </button>
+                        </div>
+
+                        <div x-show="logTab === 'scheduler'" class="space-y-1.5 max-h-64 overflow-y-auto">
+                            <template x-if="scheduler.logs.length === 0">
+                                <p class="text-slate-600 text-center py-6">No scheduler logs</p>
+                            </template>
+                            <template x-for="(log, index) in scheduler.logs.slice(0, 10)" :key="index">
+                                <div class="flex items-center gap-2 p-2 rounded bg-slate-800/30">
+                                    <span class="w-2 h-2 rounded-full flex-shrink-0"
+                                          :class="log.status === 'success' ? 'bg-green-400' : log.status === 'failed' ? 'bg-red-400' : 'bg-blue-400'"></span>
+                                    <span class="text-slate-500 flex-shrink-0 text-sm" x-text="log.timestamp.split('T')[1]?.substring(0, 8) || ''"></span>
+                                    <span class="text-slate-300 truncate text-sm" x-text="log.details"></span>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div x-show="logTab === 'updates'" class="space-y-1.5 max-h-64 overflow-y-auto">
+                            <template x-if="updateLogs.length === 0">
+                                <p class="text-slate-600 text-center py-6">No update logs</p>
+                            </template>
+                            <template x-for="(log, index) in updateLogs.slice(0, 10)" :key="index">
+                                <div class="flex items-center justify-between p-2 bg-[#0a0a0a] rounded-lg">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2 h-2 rounded-full"
+                                              :class="log.status === 'success' ? 'bg-green-400' :
+                                                      log.status === 'failed' ? 'bg-red-400' : 'bg-yellow-400'"></span>
+                                        <div>
+                                            <p class="text-white" x-text="log.plugin"></p>
+                                            <p class="text-sm text-slate-400">
+                                                <span x-text="log.from_version || '?'"></span> ->
+                                                <span x-text="log.to_version || '?'"></span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <p class="text-sm text-slate-400" x-text="log.timestamp ? log.timestamp.substring(0, 10) : ''"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== PLAYERS TAB ==================== -->
+        <div x-show="activeTab === 'players'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <!-- Online Players -->
+                <div class="lg:col-span-2 glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            Online Players
+                        </h3>
+                        <span class="px-2.5 py-1 rounded-lg bg-slate-800/80 font-medium text-slate-400 ring-1 ring-slate-700/50"
+                              x-text="players.length"></span>
+                    </div>
+
+                    <template x-if="!serverRunning || players.length === 0">
+                        <div class="text-center text-slate-600 py-8">
+                            <span x-text="!serverRunning ? 'Server offline' : 'No players online'"></span>
+                        </div>
+                    </template>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" x-show="serverRunning && players.length > 0">
+                        <template x-for="player in players" :key="player">
+                            <div class="group flex items-center gap-3 p-3 rounded-lg bg-[#0a0a0a] border border-slate-700/30 hover:border-green-500/30 transition-all">
+                                <div class="w-10 h-10 rounded bg-slate-700/50 flex items-center justify-center overflow-hidden ring-1 ring-slate-600/30">
+                                    <img :src="`https://mc-heads.net/avatar/${extractUsername(player)}/40`"
+                                         class="w-full h-full object-cover"
+                                         style="image-rendering: pixelated;"
+                                         :alt="player"
+                                         data-url-index="0"
+                                         @error="loadAvatarWithRetry($event.target, player)">
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-semibold text-white truncate" x-text="player"></p>
+                                    <p class="text-sm text-green-400">Online</p>
+                                </div>
+                                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                    <button @click="kickPlayer(player)"
+                                        class="p-2 rounded-lg hover:bg-amber-500/20 text-slate-500 hover:text-amber-400 transition-all"
+                                        title="Kick">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                        </svg>
+                                    </button>
+                                    <button @click="openWarnModal(player)"
+                                        class="p-2 rounded-lg hover:bg-yellow-500/20 text-slate-500 hover:text-yellow-400 transition-all"
+                                        title="Warn">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    </button>
+                                    <button @click="openBanModal(player)"
+                                        class="p-2 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
+                                        title="Temp Ban">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Broadcast -->
+                <div class="glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Broadcast</h3>
+                            <p class="text-xs text-slate-500">Send server announcement</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Message (max 200 chars)
+                            </label>
+                            <textarea x-model="broadcastMessage" rows="3" maxlength="200"
+                                class="w-full rounded-lg py-2.5 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 resize-none"
+                                placeholder="Enter your announcement..."></textarea>
+                            <p class="text-xs text-slate-600 mt-1" x-text="`${broadcastMessage.length}/200`"></p>
+                        </div>
+
+                        <button @click="sendBroadcast()" :disabled="!broadcastMessage.trim() || broadcasting || !serverRunning"
+                            class="w-full py-2.5 rounded-lg text-white font-semibold bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            <span x-show="!broadcasting">Send Broadcast</span>
+                            <span x-show="broadcasting">Sending...</span>
+                        </button>
+
+                        <div class="flex items-center gap-2 p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                            <svg class="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p class="text-xs text-slate-500">1 minute cooldown between broadcasts.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== MODERATION TAB ==================== -->
+        <div x-show="activeTab === 'moderation'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <!-- Temp Ban Form -->
+                <div class="glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Temp Ban</h3>
+                            <p class="text-xs text-slate-500">Temporarily ban a player</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Player Name</label>
+                            <input type="text" x-model="banForm.player" list="player-autocomplete"
+                                class="w-full rounded-lg py-2 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-red-500/50"
+                                placeholder="Enter username">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Duration</label>
+                            <div class="grid grid-cols-4 gap-2">
+                                <template x-for="time in ['1h', '6h', '24h', '7d']">
+                                    <button @click="banForm.duration = time"
+                                        class="px-3 py-2 rounded-lg text-sm font-medium border transition-all"
+                                        :class="banForm.duration === time
+                                            ? 'bg-red-500/20 border-red-500/40 text-red-400'
+                                            : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800 hover:text-slate-300'">
+                                        <span x-text="time"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Reason</label>
+                            <textarea x-model="banForm.reason" rows="2"
+                                class="w-full rounded-lg py-2 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-red-500/50 resize-none"
+                                placeholder="Reason for the ban..."></textarea>
+                        </div>
+
+                        <button @click="tempbanPlayer()" :disabled="!banForm.player || banning"
+                            class="w-full py-2.5 rounded-lg text-white font-semibold bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            <span x-show="!banning">Execute Ban</span>
+                            <span x-show="banning">Processing...</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Warn Form -->
+                <div class="glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Issue Warning</h3>
+                            <p class="text-xs text-slate-500">Warn a player with tracking</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Player Name</label>
+                            <input type="text" x-model="warnForm.player" list="player-autocomplete"
+                                class="w-full rounded-lg py-2 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-yellow-500/50"
+                                placeholder="Enter username">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Warning Reason</label>
+                            <textarea x-model="warnForm.reason" rows="3"
+                                class="w-full rounded-lg py-2 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-yellow-500/50 resize-none"
+                                placeholder="Describe the violation..."></textarea>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" x-model="warnForm.notify" id="notifyPlayer"
+                                class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-yellow-500 focus:ring-yellow-500/20">
+                            <label for="notifyPlayer" class="text-sm text-slate-400">Notify player in-game</label>
+                        </div>
+
+                        <button @click="warnPlayer()" :disabled="!warnForm.player || !warnForm.reason || warning"
+                            class="w-full py-2.5 rounded-lg text-white font-semibold bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            <span x-show="!warning">Issue Warning</span>
+                            <span x-show="warning">Processing...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3 flex items-center gap-2 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                <svg class="w-5 h-5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <p class="text-sm text-slate-500">
+                    Admin mode: No protected player restrictions. All moderation actions are logged for audit.
+                </p>
+            </div>
+        </div>
+
+        <!-- ==================== LOGS TAB ==================== -->
+        <div x-show="activeTab === 'logs'" x-transition>
+            <div class="glass-panel rounded-lg border border-slate-700/30 overflow-hidden">
+                <div class="p-4 border-b border-slate-800/50">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Server Logs
+                        </h3>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <input type="text" x-model="logSearch" @keyup.enter="fetchServerLogs()"
+                                class="flex-1 sm:w-48 rounded-lg py-2 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-green-500/50"
+                                placeholder="Search player...">
+                            <button @click="fetchServerLogs()" :disabled="loadingLogs"
+                                class="px-4 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-300 border border-slate-600/50 transition-all">
+                                <svg class="w-4 h-4" :class="loadingLogs ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="max-h-96 overflow-y-auto font-mono text-xs">
+                    <template x-if="loadingLogs">
+                        <div class="flex items-center justify-center py-12">
+                            <svg class="w-8 h-8 text-green-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </div>
+                    </template>
+                    <template x-if="!loadingLogs && serverLogs.length === 0">
+                        <div class="flex flex-col items-center justify-center py-12 text-slate-600">
+                            <p class="text-sm">No logs available</p>
+                        </div>
+                    </template>
+                    <template x-if="!loadingLogs && serverLogs.length > 0">
+                        <div>
+                            <template x-for="log in serverLogs" :key="log.time + log.message">
+                                <div class="px-4 py-1.5 border-b border-slate-800/30 text-slate-400 hover:bg-slate-800/30">
+                                    <span class="text-slate-600" x-text="log.time"></span>
+                                    <span x-text="log.message"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="p-3 border-t border-slate-800/50 text-xs text-slate-600">
+                    <span x-text="`Showing ${serverLogs.length} log entries`"></span>
+                    <span class="ml-2">(IPs masked)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== WHITELIST TAB ==================== -->
+        <div x-show="activeTab === 'whitelist'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <!-- Whitelist Players -->
+                <div class="lg:col-span-2 glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                            Whitelisted Players
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <!-- Sort Buttons -->
+                            <div class="flex items-center gap-1 mr-2">
+                                <button @click="whitelistSort = 'az'"
+                                    :class="whitelistSort === 'az' ? 'bg-green-500/30 text-green-400 border-green-500/50' : 'bg-slate-800/50 text-slate-400 border-slate-600/50 hover:bg-slate-700/50'"
+                                    class="px-2 py-1 text-xs font-medium rounded border transition-all">
+                                    A-Z
+                                </button>
+                                <button @click="whitelistSort = 'za'"
+                                    :class="whitelistSort === 'za' ? 'bg-green-500/30 text-green-400 border-green-500/50' : 'bg-slate-800/50 text-slate-400 border-slate-600/50 hover:bg-slate-700/50'"
+                                    class="px-2 py-1 text-xs font-medium rounded border transition-all">
+                                    Z-A
+                                </button>
+                            </div>
+                            <button @click="fetchWhitelist()" :disabled="loadingWhitelist"
+                                class="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-400 border border-slate-600/50 transition-all">
+                                <svg class="w-4 h-4" :class="loadingWhitelist ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="min-h-[150px]">
+                        <template x-if="!serverRunning">
+                            <div class="h-full flex flex-col items-center justify-center text-slate-600 py-8">
+                                <p class="text-sm">Server offline</p>
+                            </div>
+                        </template>
+                        <template x-if="serverRunning && whitelist.length === 0">
+                            <div class="h-full flex flex-col items-center justify-center text-slate-600 py-8">
+                                <p class="text-sm">No players whitelisted</p>
+                            </div>
+                        </template>
+                        <div class="flex flex-wrap gap-2" x-show="serverRunning && whitelist.length > 0">
+                            <template x-for="player in sortedWhitelist" :key="player.name || player">
+                                <div class="group flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/30">
+                                    <span class="text-sm text-white" x-text="player.name || player"></span>
+                                    <button @click="removeFromWhitelist(player.name || player)"
+                                        class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
+                                        title="Remove from whitelist">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add to Whitelist -->
+                <div class="glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Add Player</h3>
+                            <p class="text-xs text-slate-500">Add to whitelist</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Player Name</label>
+                            <input type="text" x-model="whitelistPlayer"
+                                class="w-full rounded-lg py-2 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-emerald-500/50"
+                                placeholder="Enter username">
+                        </div>
+
+                        <button @click="addToWhitelist()" :disabled="!whitelistPlayer.trim() || !serverRunning"
+                            class="w-full py-2.5 rounded-lg text-white font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            Add to Whitelist
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== COREPROTECT LOOKUP TAB ==================== -->
+        <div x-show="activeTab === 'lookup'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <!-- Lookup Form -->
+                <div class="glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">CoreProtect Lookup</h3>
+                            <p class="text-xs text-slate-500">Investigate block changes</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Lookup Type</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button @click="lookupType = 'player'"
+                                    class="px-3 py-2 rounded-lg text-sm font-medium border transition-all"
+                                    :class="lookupType === 'player'
+                                        ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+                                        : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800'">
+                                    By Player
+                                </button>
+                                <button @click="lookupType = 'coords'"
+                                    class="px-3 py-2 rounded-lg text-sm font-medium border transition-all"
+                                    :class="lookupType === 'coords'
+                                        ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+                                        : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800'">
+                                    By Coords
+                                </button>
+                            </div>
+                        </div>
+
+                        <template x-if="lookupType === 'player'">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Player Name</label>
+                                <input type="text" x-model="lookupPlayer"
+                                    class="w-full rounded-lg py-2 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-cyan-500/50"
+                                    placeholder="Enter username">
+                            </div>
+                        </template>
+
+                        <template x-if="lookupType === 'coords'">
+                            <div class="space-y-2">
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1">X</label>
+                                        <input type="number" x-model.number="lookupCoords.x"
+                                            class="w-full rounded-lg py-2 px-3 text-sm text-white bg-slate-800/60 border border-slate-600/50 focus:outline-none focus:border-cyan-500/50">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1">Y</label>
+                                        <input type="number" x-model.number="lookupCoords.y"
+                                            class="w-full rounded-lg py-2 px-3 text-sm text-white bg-slate-800/60 border border-slate-600/50 focus:outline-none focus:border-cyan-500/50">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1">Z</label>
+                                        <input type="number" x-model.number="lookupCoords.z"
+                                            class="w-full rounded-lg py-2 px-3 text-sm text-white bg-slate-800/60 border border-slate-600/50 focus:outline-none focus:border-cyan-500/50">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1">Radius (1-10)</label>
+                                    <input type="number" x-model.number="lookupCoords.radius" min="1" max="10"
+                                        class="w-full rounded-lg py-2 px-3 text-sm text-white bg-slate-800/60 border border-slate-600/50 focus:outline-none focus:border-cyan-500/50"
+                                        placeholder="1-10">
+                                </div>
+                            </div>
+                        </template>
+
+                        <button @click="performLookup()" :disabled="lookupLoading || (lookupType === 'player' && !lookupPlayer)"
+                            class="w-full py-2.5 rounded-lg text-white font-semibold bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            <span x-show="!lookupLoading">Search</span>
+                            <span x-show="lookupLoading">Searching...</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Lookup Results -->
+                <div class="lg:col-span-2 glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-orbitron text-lg text-white">Lookup Results</h3>
+                        <span class="px-3 py-1 rounded-lg bg-slate-800/80 text-xs font-medium text-slate-400"
+                            x-text="`${lookupResults.length} results`"></span>
+                    </div>
+
+                    <div class="max-h-80 overflow-y-auto">
+                        <template x-if="lookupResults.length === 0">
+                            <div class="flex flex-col items-center justify-center py-12 text-slate-600">
+                                <p class="text-sm">No results. Run a search.</p>
+                            </div>
+                        </template>
+                        <template x-if="lookupResults.length > 0">
+                            <div class="space-y-2">
+                                <template x-for="r in lookupResults" :key="r.id">
+                                    <div class="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-sm font-medium text-white" x-text="r.player"></span>
+                                            <span class="text-xs text-slate-500" x-text="r.timestamp"></span>
+                                        </div>
+                                        <div class="flex items-center gap-3 text-xs text-slate-400">
+                                            <span :class="{
+                                                'text-red-400': r.action === 'break',
+                                                'text-emerald-400': r.action === 'place',
+                                                'text-amber-400': r.action === 'interact'
+                                            }" x-text="r.action"></span>
+                                            <span x-text="r.block"></span>
+                                            <span class="text-slate-600" x-text="`@ ${r.x}, ${r.y}, ${r.z}`"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== WARNINGS TAB ==================== -->
+        <div x-show="activeTab === 'warnings'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <!-- Recent Warnings -->
+                <div class="lg:col-span-2 glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            Recent Warnings
+                        </h3>
+                        <button @click="fetchWarnings()" :disabled="loadingWarnings"
+                            class="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-400 border border-slate-600/50 transition-all">
+                            <svg class="w-4 h-4" :class="loadingWarnings ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="max-h-80 overflow-y-auto">
+                        <template x-if="warningsList.length === 0">
+                            <div class="flex flex-col items-center justify-center py-12 text-slate-600">
+                                <p class="text-sm">No warnings issued</p>
+                            </div>
+                        </template>
+                        <template x-if="warningsList.length > 0">
+                            <div class="space-y-2">
+                                <template x-for="w in warningsList" :key="w.id">
+                                    <div class="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-2 mb-1">
+                                                    <span class="text-sm font-semibold text-white" x-text="w.player"></span>
+                                                    <span class="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-400">Warning</span>
+                                                </div>
+                                                <p class="text-sm text-slate-400 mb-2" x-text="w.reason"></p>
+                                                <div class="flex items-center gap-3 text-xs text-slate-500">
+                                                    <span x-text="new Date(w.timestamp).toLocaleString()"></span>
+                                                    <span>by <span class="text-slate-400" x-text="w.issued_by.split('@')[0]"></span></span>
+                                                </div>
+                                            </div>
+                                            <button @click="deleteWarning(w.id)"
+                                                class="p-1.5 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
+                                                title="Delete warning">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Player Warning Lookup -->
+                <div class="glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-white">Player Lookup</h3>
+                            <p class="text-xs text-slate-500">Check warning history</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Player Name</label>
+                            <input type="text" x-model="warningLookupPlayer"
+                                class="w-full rounded-lg py-2 px-4 text-sm text-white bg-slate-800/60 border border-slate-600/50 placeholder-slate-600 focus:outline-none focus:border-yellow-500/50"
+                                placeholder="Enter username">
+                        </div>
+
+                        <button @click="lookupPlayerWarnings()" :disabled="!warningLookupPlayer.trim()"
+                            class="w-full py-2.5 rounded-lg text-white font-semibold bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            Search Warnings
+                        </button>
+
+                        <template x-if="playerWarnings">
+                            <div class="mt-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-semibold text-white" x-text="warningLookupPlayer"></span>
+                                    <span class="px-2 py-1 rounded text-xs"
+                                        :class="playerWarnings.count >= 3 ? 'bg-red-500/20 text-red-400' : 'bg-slate-700 text-slate-400'"
+                                        x-text="`${playerWarnings.count} warnings`"></span>
+                                </div>
+                                <template x-if="playerWarnings.escalation_recommendation">
+                                    <div class="p-2 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-400 mb-2">
+                                        <span x-text="playerWarnings.escalation_recommendation"></span>
+                                    </div>
+                                </template>
+                                <div class="space-y-2 max-h-40 overflow-y-auto">
+                                    <template x-for="w in playerWarnings.warnings" :key="w.id">
+                                        <div class="text-xs text-slate-400 p-2 bg-slate-900/50 rounded">
+                                            <p x-text="w.reason"></p>
+                                            <p class="text-slate-600 mt-1" x-text="new Date(w.timestamp).toLocaleDateString()"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== WATCHLIST TAB ==================== -->
+        <div x-show="activeTab === 'watchlist'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <!-- Watchlist Management -->
+                <div class="lg:col-span-2 glass-panel rounded-lg p-4 border border-amber-500/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                            Watchlist
+                        </h3>
+                        <button @click="loadWatchlist()" class="px-3 py-1.5 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                            Refresh
+                        </button>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="grid grid-cols-4 gap-2 mb-4">
+                        <div class="text-center p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                            <div class="text-lg font-bold text-amber-400" x-text="watchlistStats.suspicious || 0"></div>
+                            <div class="text-xs text-slate-500">Suspicious</div>
+                        </div>
+                        <div class="text-center p-2 rounded bg-red-500/10 border border-red-500/20">
+                            <div class="text-lg font-bold text-red-400" x-text="watchlistStats.high_priority || 0"></div>
+                            <div class="text-xs text-slate-500">High Priority</div>
+                        </div>
+                        <div class="text-center p-2 rounded bg-red-900/30 border border-red-900/40">
+                            <div class="text-lg font-bold text-red-600" x-text="watchlistStats.confirmed_cheaters || 0"></div>
+                            <div class="text-xs text-slate-500">Confirmed</div>
+                        </div>
+                        <div class="text-center p-2 rounded bg-slate-700/30 border border-slate-600/30">
+                            <div class="text-lg font-bold text-slate-300" x-text="watchlistStats.total_active || 0"></div>
+                            <div class="text-xs text-slate-500">Total</div>
+                        </div>
+                    </div>
+
+                    <!-- Watchlist Table -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-slate-500 border-b border-slate-700/50">
+                                    <th class="py-2 px-2">Player</th>
+                                    <th class="py-2 px-2">Level</th>
+                                    <th class="py-2 px-2">Reason</th>
+                                    <th class="py-2 px-2">Tags</th>
+                                    <th class="py-2 px-2">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="entry in watchlistEntries" :key="entry.id">
+                                    <tr class="border-b border-slate-700/30 hover:bg-slate-800/30">
+                                        <td class="py-2 px-2 font-medium text-white" x-text="entry.player"></td>
+                                        <td class="py-2 px-2">
+                                            <select x-model="entry.level" @change="updateWatchlistLevel(entry.id, entry.level)"
+                                                class="text-xs px-2 py-1 rounded border-0"
+                                                :class="{
+                                                    'bg-amber-500/30 text-amber-300': entry.level === 'suspicious',
+                                                    'bg-red-500/30 text-red-300': entry.level === 'high-priority',
+                                                    'bg-red-900/50 text-red-400': entry.level === 'confirmed-cheater'
+                                                }">
+                                                <option value="suspicious">Suspicious</option>
+                                                <option value="high-priority">High Priority</option>
+                                                <option value="confirmed-cheater">Confirmed</option>
+                                            </select>
+                                        </td>
+                                        <td class="py-2 px-2 max-w-xs truncate text-slate-400" x-text="entry.reason"></td>
+                                        <td class="py-2 px-2">
+                                            <template x-for="tag in entry.tags.slice(0, 2)" :key="tag">
+                                                <span class="px-1.5 py-0.5 rounded text-xs bg-slate-700/50 mr-1" x-text="tag"></span>
+                                            </template>
+                                        </td>
+                                        <td class="py-2 px-2">
+                                            <div class="flex gap-1 flex-wrap">
+                                                <button @click="runGrimacForPlayer(entry.player)"
+                                                    class="px-2 py-1 text-xs bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded"
+                                                    title="Run GrimAC profiles">
+                                                    GrimAC
+                                                </button>
+                                                <button @click="runMtrackForPlayer(entry.player)"
+                                                    class="px-2 py-1 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded"
+                                                    title="Run mTrack check">
+                                                    mTrack
+                                                </button>
+                                                <button @click="resolveWatchlistEntry(entry.id, 'resolved')"
+                                                    class="px-2 py-1 text-xs bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded">
+                                                    Resolve
+                                                </button>
+                                                <button @click="deleteWatchlistEntry(entry.id)"
+                                                    class="px-2 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded">
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="watchlistEntries.length === 0">
+                                    <tr>
+                                        <td colspan="5" class="py-6 text-center text-slate-500">No players on watchlist</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Add to Watchlist Form -->
+                <div class="glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <h3 class="font-orbitron text-lg text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Add to Watchlist
+                    </h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Player Name</label>
+                            <input type="text" x-model="watchlistForm.player" placeholder="minecraft_username" list="player-autocomplete"
+                                class="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white text-sm focus:border-amber-500/50 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Level</label>
+                            <select x-model="watchlistForm.level"
+                                class="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white text-sm focus:border-amber-500/50 focus:outline-none">
+                                <option value="suspicious">Suspicious</option>
+                                <option value="high-priority">High Priority</option>
+                                <option value="confirmed-cheater">Confirmed Cheater</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Reason</label>
+                            <input type="text" x-model="watchlistForm.reason" placeholder="Why is this player suspicious?"
+                                class="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white text-sm focus:border-amber-500/50 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Evidence Notes</label>
+                            <textarea x-model="watchlistForm.evidence_notes" placeholder="Additional evidence details..."
+                                class="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white text-sm focus:border-amber-500/50 focus:outline-none h-20 resize-none"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Tags</label>
+                            <select x-model="watchlistForm.selectedTag" @change="addTagToForm()"
+                                class="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white text-sm focus:border-amber-500/50 focus:outline-none mb-2">
+                                <option value="">Select a tag to add...</option>
+                                <template x-for="tag in validTags" :key="tag">
+                                    <option :value="tag" x-text="tag"></option>
+                                </template>
+                            </select>
+                            <div class="flex flex-wrap gap-1 mb-2" x-show="watchlistForm.tagsArray.length > 0">
+                                <template x-for="(tag, idx) in watchlistForm.tagsArray" :key="idx">
+                                    <span class="px-2 py-1 rounded text-xs bg-amber-500/20 text-amber-300 flex items-center gap-1">
+                                        <span x-text="tag"></span>
+                                        <button @click="removeTagFromForm(idx)" class="text-amber-200 hover:text-white">&times;</button>
+                                    </span>
+                                </template>
+                            </div>
+                            <input type="hidden" x-model="watchlistForm.tags">
+                        </div>
+                        <button @click="addToWatchlist()" :disabled="watchlistAdding"
+                            class="w-full px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 text-sm font-medium disabled:opacity-50">
+                            <span x-text="watchlistAdding ? 'Adding...' : 'Add to Watchlist'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== SPECTATOR TAB ==================== -->
+        <div x-show="activeTab === 'spectator'" x-transition>
+            <!-- Manual Spectator Request Form -->
+            <div class="glass-panel rounded-lg p-4 border border-blue-500/30 mb-3">
+                <h3 class="font-orbitron text-lg text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Create Spectator Session
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <input type="text" x-model="spectatorRequestForm.player" list="player-autocomplete" placeholder="Player name"
+                        class="px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white text-sm focus:border-blue-500/50 focus:outline-none">
+                    <input type="text" x-model="spectatorRequestForm.reason" placeholder="Reason"
+                        class="px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white text-sm focus:border-blue-500/50 focus:outline-none">
+                    <select x-model="spectatorRequestForm.duration"
+                        class="px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-white text-sm focus:border-blue-500/50 focus:outline-none">
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="45">45 minutes</option>
+                        <option value="60">60 minutes</option>
+                    </select>
+                    <button @click="createSpectatorSession()"
+                        class="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg border border-blue-500/30 text-sm font-medium">
+                        Create (Auto-Approved)
+                    </button>
+                </div>
+                <p class="text-xs text-slate-500 mt-2">Admin requests are automatically approved</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <!-- Pending Requests -->
+                <div class="glass-panel rounded-lg p-4 border border-purple-500/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Pending Requests
+                            <span x-show="pendingSpectatorRequests.length > 0"
+                                class="px-2 py-0.5 text-xs bg-red-500 text-white rounded-full"
+                                x-text="pendingSpectatorRequests.length"></span>
+                        </h3>
+                        <button @click="loadPendingSpectators()" class="px-3 py-1.5 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                            Refresh
+                        </button>
+                    </div>
+
+                    <div class="space-y-2">
+                        <template x-for="req in pendingSpectatorRequests" :key="req.id">
+                            <div class="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div>
+                                        <span class="font-medium text-white" x-text="req.player"></span>
+                                        <span class="text-xs text-slate-500 ml-2" x-text="req.max_duration_minutes + ' min'"></span>
+                                    </div>
+                                    <span class="text-xs text-slate-500" x-text="req.requested_at.slice(0, 16).replace('T', ' ')"></span>
+                                </div>
+                                <p class="text-sm text-slate-400 mb-2" x-text="'Requested by: ' + req.requested_by"></p>
+                                <p class="text-sm text-slate-300 mb-3" x-text="'Reason: ' + req.request_reason"></p>
+                                <div class="flex gap-2">
+                                    <button @click="approveSpectator(req.id)"
+                                        class="flex-1 px-3 py-1.5 text-xs bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded border border-green-500/30">
+                                        Approve
+                                    </button>
+                                    <button @click="denySpectator(req.id)"
+                                        class="flex-1 px-3 py-1.5 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded border border-red-500/30">
+                                        Deny
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="pendingSpectatorRequests.length === 0">
+                            <div class="text-center py-6 text-slate-500">
+                                <svg class="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                No pending requests
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Active Sessions -->
+                <div class="glass-panel rounded-lg p-4 border border-slate-700/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            Active Sessions
+                        </h3>
+                        <button @click="loadActiveSpectators()" class="px-3 py-1.5 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                            Refresh
+                        </button>
+                    </div>
+
+                    <div class="space-y-2">
+                        <template x-for="session in activeSpectatorSessions" :key="session.id">
+                            <div class="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div>
+                                        <span class="font-medium text-white" x-text="session.player"></span>
+                                        <span x-show="session.auto_approved" class="ml-2 px-1.5 py-0.5 text-xs bg-amber-500/30 text-amber-300 rounded">Auto</span>
+                                    </div>
+                                    <span class="text-xs text-slate-500" x-text="session.max_duration_minutes + ' min'"></span>
+                                </div>
+                                <p class="text-sm text-slate-400 mb-2" x-text="'Staff: ' + session.requested_by"></p>
+                                <p class="text-xs text-slate-500 mb-2" x-text="'Started: ' + (session.started_at || 'N/A').slice(0, 16).replace('T', ' ')"></p>
+                                <button @click="revokeSpectator(session.id)"
+                                    class="w-full px-3 py-1.5 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded border border-red-500/30">
+                                    Revoke Session
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="activeSpectatorSessions.length === 0">
+                            <div class="text-center py-6 text-slate-500">
+                                <svg class="w-10 h-10 mx-auto mb-2 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                </svg>
+                                No active spectator sessions
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Spectator Stats -->
+                    <div class="mt-4 pt-4 border-t border-slate-700/30">
+                        <h4 class="text-sm text-slate-400 mb-2">Statistics</h4>
+                        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                            <div class="p-2 rounded bg-slate-800/50">
+                                <div class="font-bold text-slate-300" x-text="spectatorStats.total || 0"></div>
+                                <div class="text-slate-500">Total</div>
+                            </div>
+                            <div class="p-2 rounded bg-slate-800/50">
+                                <div class="font-bold text-green-400" x-text="spectatorStats.completed || 0"></div>
+                                <div class="text-slate-500">Completed</div>
+                            </div>
+                            <div class="p-2 rounded bg-slate-800/50">
+                                <div class="font-bold text-amber-400" x-text="spectatorStats.auto_approved || 0"></div>
+                                <div class="text-slate-500">Auto-Approved</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Watchlisted Players for Quick Spectate -->
+            <div class="glass-panel rounded-lg p-4 border border-amber-500/30 mt-3">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                        Watchlisted Players
+                    </h3>
+                    <span class="text-xs text-slate-500">Quick spectate targets</span>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                    <template x-for="entry in watchlistEntries" :key="entry.id">
+                        <div class="p-3 rounded-lg border transition-all hover:border-purple-500/50"
+                            :class="{
+                                'bg-amber-500/10 border-amber-500/20': entry.level === 'suspicious',
+                                'bg-red-500/10 border-red-500/20': entry.level === 'high-priority',
+                                'bg-red-900/20 border-red-900/30': entry.level === 'confirmed-cheater'
+                            }">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium text-white text-sm" x-text="entry.player"></span>
+                                <span class="px-1.5 py-0.5 rounded text-xs"
+                                    :class="{
+                                        'bg-amber-500/30 text-amber-300': entry.level === 'suspicious',
+                                        'bg-red-500/30 text-red-300': entry.level === 'high-priority',
+                                        'bg-red-900/50 text-red-400': entry.level === 'confirmed-cheater'
+                                    }"
+                                    x-text="entry.level === 'confirmed-cheater' ? 'Confirmed' : entry.level === 'high-priority' ? 'High' : 'Watch'"></span>
+                            </div>
+                            <p class="text-xs text-slate-500 truncate mb-2" x-text="entry.reason"></p>
+                            <div class="flex gap-1">
+                                <button @click="quickSpectateRequest(entry.player, entry.level)"
+                                    class="flex-1 px-2 py-1 text-xs bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded">
+                                    Spectate
+                                </button>
+                                <button @click="runGrimacForPlayer(entry.player)"
+                                    class="px-2 py-1 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded"
+                                    title="GrimAC">
+                                    G
+                                </button>
+                                <button @click="runMtrackForPlayer(entry.player)"
+                                    class="px-2 py-1 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded"
+                                    title="mTrack">
+                                    M
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="watchlistEntries.length === 0">
+                        <div class="col-span-full text-center py-6 text-slate-500">
+                            No players on watchlist
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== SETTINGS TAB ==================== -->
+        <div x-show="activeTab === 'settings'" x-transition>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <!-- Staff Feature Visibility -->
+                <div class="lg:col-span-2 glass-panel rounded-lg p-4 border border-cyan-500/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                            Staff Feature Visibility
+                        </h3>
+                        <button @click="loadStaffSettings()" class="px-3 py-1.5 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                            Refresh
+                        </button>
+                    </div>
+
+                    <p class="text-sm text-slate-400 mb-4">Control which features each staff member can see. Hidden features will not appear in their panel.</p>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-slate-500 border-b border-slate-700/50">
+                                    <th class="py-2 px-2">Staff Email</th>
+                                    <template x-for="(desc, feature) in availableFeatures" :key="feature">
+                                        <th class="py-2 px-2 text-center text-xs" x-text="desc.split(' ')[0]"></th>
+                                    </template>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="staff in staffSettings" :key="staff.email">
+                                    <tr class="border-b border-slate-700/30 hover:bg-slate-800/30">
+                                        <td class="py-3 px-2 font-medium text-white" x-text="staff.email"></td>
+                                        <template x-for="(desc, feature) in availableFeatures" :key="feature">
+                                            <td class="py-3 px-2 text-center">
+                                                <button @click="toggleStaffFeature(staff.email, feature, staff.hidden_features.includes(feature))"
+                                                    class="w-10 h-6 rounded-full transition-colors relative"
+                                                    :class="staff.hidden_features.includes(feature) ? 'bg-red-500/50' : 'bg-green-500'">
+                                                    <span class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+                                                        :class="staff.hidden_features.includes(feature) ? '' : 'translate-x-4'"></span>
+                                                </button>
+                                            </td>
+                                        </template>
+                                    </tr>
+                                </template>
+                                <template x-if="staffSettings.length === 0">
+                                    <tr>
+                                        <td :colspan="Object.keys(availableFeatures).length + 1" class="py-6 text-center text-slate-500">No staff members configured</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
+                        <h4 class="text-sm font-medium text-slate-300 mb-2">Feature Legend</h4>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <template x-for="(desc, feature) in availableFeatures" :key="feature">
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-1 rounded bg-slate-700/50 text-slate-400" x-text="feature"></span>
+                                    <span class="text-slate-500" x-text="desc"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Command Output Modal -->
+    <div x-show="commandOutputModal" x-transition @click.self="commandOutputModal = false"
+        class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+        <div class="bg-[#0a0a0a] rounded-xl border border-purple-500/30 max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div class="flex items-center justify-between p-4 border-b border-slate-700/30">
+                <h3 class="font-orbitron text-white" x-text="commandOutputTitle"></h3>
+                <button @click="commandOutputModal = false" class="text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto max-h-96">
+                <pre class="text-green-400 whitespace-pre-wrap text-sm font-mono bg-black/50 p-4 rounded-lg" x-text="commandOutputContent || 'Loading...'"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div x-show="changelogModal" x-transition @click.self="changelogModal = false"
+        class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+        <div class="bg-[#0a0a0a] rounded-xl border border-slate-700/50 max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div class="flex items-center justify-between p-4 border-b border-slate-700/30">
+                <h3 class="font-orbitron text-white" x-text="changelogData.plugin_id + ' Changelog'"></h3>
+                <button @click="changelogModal = false" class="text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto max-h-96">
+                <p class="text-sm text-green-400 mb-3" x-text="'Version: ' + changelogData.version"></p>
+                <pre class="text-slate-300 whitespace-pre-wrap text-sm" x-text="changelogData.changelog || 'No changelog'"></pre>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="confirmModal" x-transition @click.self="confirmModal = false"
+        class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+        <div class="bg-[#0a0a0a] rounded-xl border border-green-500/30 max-w-md w-full p-5">
+            <h3 class="font-orbitron text-white mb-3">Confirm Update</h3>
+            <p class="text-sm text-slate-300 mb-2">
+                Update <span class="text-green-400 font-semibold" x-text="pendingUpdate"></span>?
+            </p>
+            <p class="text-xs text-slate-500 mb-4">A backup will be created.</p>
+            <div class="flex gap-2">
+                <button @click="confirmModal = false" class="flex-1 px-4 py-2 text-sm bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                    Cancel
+                </button>
+                <button @click="confirmUpdate()" class="flex-1 px-4 py-2 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30">
+                    Update
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div x-show="toast.show" x-transition class="fixed bottom-4 right-4 p-3 rounded-lg border z-50"
+        :class="toast.type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-300' :
+                toast.type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-300' :
+                'bg-slate-700/50 border-slate-600/30 text-slate-300'">
+        <p class="text-sm" x-text="toast.message"></p>
+    </div>
+
+    <!-- Player Autocomplete Datalist -->
+    <datalist id="player-autocomplete">
+        <template x-for="player in whitelistPlayers" :key="player">
+            <option :value="player"></option>
+        </template>
+    </datalist>
+</div>
+
+<script>
+    function minecraftAdmin() {
+        return {
+            checking: false,
+            updating: null,
+            updateResults: null,
+            changelogModal: false,
+            changelogData: {},
+            confirmModal: false,
+            pendingUpdate: null,
+            toast: { show: false, message: '', type: 'info' },
+            loading: false,
+
+            activeTab: 'overview',
+
+            serverRunning: {{ 'true' if server_status.running else 'false' }},
+            playersOnline: {{ server_status.players_online or 0 }},
+            maxPlayers: {{ server_status.max_players or 20 }},
+            players: [],
+            updateLogs: [],
+
+            // Moderation
+            banning: false,
+            banForm: { player: '', duration: '24h', reason: 'Rule violation' },
+            warning: false,
+            warnForm: { player: '', reason: '', notify: true },
+            broadcasting: false,
+            broadcastMessage: '',
+
+            // Logs
+            loadingLogs: false,
+            serverLogs: [],
+            logSearch: '',
+
+            // Whitelist
+            loadingWhitelist: false,
+            whitelist: [],
+            whitelistPlayer: '',
+            whitelistSort: 'az',  // 'az' or 'za'
+
+            // CoreProtect Lookup
+            lookupType: 'player',
+            lookupPlayer: '',
+            lookupCoords: { x: 0, y: 64, z: 0, radius: 5 },
+            lookupLoading: false,
+            lookupResults: [],
+
+            // Warnings
+            loadingWarnings: false,
+            warningsList: [],
+            warningLookupPlayer: '',
+            playerWarnings: null,
+
+            // Watchlist
+            watchlistEntries: [],
+            watchlistStats: {},
+            watchlistAdding: false,
+            watchlistForm: {
+                player: '',
+                level: 'suspicious',
+                reason: '',
+                evidence_notes: '',
+                tags: '',
+                tagsArray: [],
+                selectedTag: ''
+            },
+            validTags: [],
+
+            // Spectator
+            pendingSpectatorRequests: [],
+            activeSpectatorSessions: [],
+            spectatorStats: {},
+            pendingSpectatorCount: 0,
+            spectatorRequestForm: {
+                player: '',
+                reason: 'Admin investigation',
+                duration: 30
+            },
+
+            // Staff Settings
+            staffSettings: [],
+            availableFeatures: {},
+
+            // Command Output Modal
+            commandOutputModal: false,
+            commandOutputTitle: '',
+            commandOutputContent: '',
+
+            // Whitelist Autocomplete
+            whitelistPlayers: [],
+
+            scheduler: {
+                config: {
+                    enabled: true,
+                    empty_server_enabled: true,
+                    empty_hours_threshold: 6,
+                    uptime_restart_enabled: true,
+                    max_uptime_hours: 12,
+                    countdown_minutes: 5
+                },
+                status: {
+                    state: 'disabled',
+                    server_running: false,
+                    players_online: 0,
+                    uptime_formatted: '--',
+                    empty_formatted: '--',
+                    next_action: null,
+                    countdown_remaining_seconds: 0,
+                    countdown_formatted: ''
+                },
+                logs: []
+            },
+
+            coreprotect: {
+                enabled: true,
+                retention_days: 30,
+                purge_hour: 4,
+                last_purge: null,
+                next_purge: null,
+                purge_running: false
+            },
+
+            init() {
+                this.refreshPlayerList();
+                this.refreshSchedulerStatus();
+                this.refreshCoreprotectStatus();
+                this.refreshUpdateLogs();
+                this.fetchServerLogs();
+                this.fetchWarnings();
+                this.loadWatchlist();
+                this.loadPendingSpectators();
+                this.loadActiveSpectators();
+                this.loadSpectatorStats();
+                this.loadValidTags();
+                this.loadStaffSettings();
+                this.loadWhitelistAutocomplete();
+                if (this.serverRunning) {
+                    this.fetchWhitelist();
+                }
+                setInterval(() => this.refreshPlayerList(), 5000);
+                setInterval(() => this.loadPendingSpectators(), 15000);
+                setInterval(() => this.refreshSchedulerStatus(), 5000);
+                setInterval(() => this.refreshCoreprotectStatus(), 30000);
+                setInterval(() => this.refreshUpdateLogs(), 30000);
+            },
+
+            get sortedWhitelist() {
+                const list = [...this.whitelist];
+                if (this.whitelistSort === 'az') {
+                    return list.sort((a, b) => {
+                        const nameA = (a.name || a).toLowerCase();
+                        const nameB = (b.name || b).toLowerCase();
+                        return nameA.localeCompare(nameB);
+                    });
+                } else if (this.whitelistSort === 'za') {
+                    return list.sort((a, b) => {
+                        const nameA = (a.name || a).toLowerCase();
+                        const nameB = (b.name || b).toLowerCase();
+                        return nameB.localeCompare(nameA);
+                    });
+                }
+                return list;
+            },
+
+            formatDate(isoString) {
+                if (!isoString) return '--';
+                const date = new Date(isoString);
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${month}/${day} ${hours}:${minutes}`;
+            },
+
+            async refreshPlayerList() {
+                if (!this.serverRunning) {
+                    this.players = [];
+                    return;
+                }
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/players');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.players = data.players || [];
+                        this.playersOnline = data.count || 0;
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch players:', e);
+                }
+            },
+
+            async refreshUpdateLogs() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/update-logs');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.updateLogs = data.logs || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch update logs:', e);
+                }
+            },
+
+            extractUsername(displayName) {
+                const match = displayName.match(/\[.*?\]\s*(.+)/) || displayName.match(/^(.+)$/);
+                return match ? match[1].trim() : displayName.trim();
+            },
+
+            getAvatarUrls(playerName) {
+                const cleanUsername = this.extractUsername(playerName);
+                return [
+                    `https://mc-heads.net/avatar/${cleanUsername}/40`,
+                    `https://minotar.net/avatar/${cleanUsername}/40`,
+                    `https://mc-heads.net/avatar/${cleanUsername}/40?retry=1`,
+                    `https://crafthead.net/avatar/${cleanUsername}/40`,
+                    `https://mc-heads.net/avatar/Steve/40`
+                ];
+            },
+
+            loadAvatarWithRetry(img, playerName) {
+                const urls = this.getAvatarUrls(playerName);
+                let currentIndex = parseInt(img.dataset.urlIndex || '0');
+                if (currentIndex >= urls.length - 1) return;
+                currentIndex++;
+                img.dataset.urlIndex = currentIndex;
+                if (currentIndex > 0) {
+                    setTimeout(() => { img.src = urls[currentIndex]; }, 300 * currentIndex);
+                } else {
+                    img.src = urls[currentIndex];
+                }
+            },
+
+            // ===== Server Control =====
+
+            async startServer() {
+                if (!confirm('Start the server?')) return;
+                this.loading = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/start', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Server starting...', 'success');
+                        this.serverRunning = true;
+                    } else {
+                        this.showToast('Failed: ' + data.error, 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to start server', 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async restartServer() {
+                if (!confirm('Restart the server?')) return;
+                this.loading = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/restart', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Restart command sent!', 'success');
+                    } else {
+                        this.showToast('Failed: ' + data.error, 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to restart server', 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            // ===== Plugin Updates =====
+
+            async checkUpdates() {
+                this.checking = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/check-updates', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.updateResults = data;
+                        this.showToast(`${data.updates_available} update(s) available`, data.updates_available > 0 ? 'info' : 'success');
+                    } else {
+                        this.showToast('Error: ' + data.error, 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to check updates', 'error');
+                } finally {
+                    this.checking = false;
+                }
+            },
+
+            getPluginUpdate(pluginId) {
+                if (!this.updateResults) return null;
+                const update = this.updateResults.updates.find(u => u.plugin_id === pluginId);
+                return update && update.has_update ? update : null;
+            },
+
+            async viewChangelog(pluginId) {
+                try {
+                    const response = await fetch(`/minecraft/admin/api/minecraft/changelog/${pluginId}`);
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.changelogData = data;
+                        this.changelogModal = true;
+                    } else {
+                        this.showToast('Error: ' + data.error, 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to fetch changelog', 'error');
+                }
+            },
+
+            applyUpdate(pluginId) {
+                this.pendingUpdate = pluginId;
+                this.confirmModal = true;
+            },
+
+            async confirmUpdate() {
+                this.confirmModal = false;
+                const pluginId = this.pendingUpdate;
+                this.updating = pluginId;
+                try {
+                    const response = await fetch(`/minecraft/admin/api/minecraft/update/${pluginId}`, { method: 'POST' });
+                    const data = await response.json();
+                    if (data.status === 'success') {
+                        this.showToast(`${pluginId} updated!`, 'success');
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        this.showToast('Update failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to apply update', 'error');
+                } finally {
+                    this.updating = null;
+                    this.pendingUpdate = null;
+                }
+            },
+
+            // ===== Scheduler =====
+
+            async refreshSchedulerStatus() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/reboot-scheduler/status');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.scheduler.config = data.config;
+                        this.scheduler.status = data.scheduler_status;
+                    }
+                    const logsResponse = await fetch('/minecraft/admin/api/minecraft/reboot-scheduler/logs?limit=20');
+                    const logsData = await logsResponse.json();
+                    if (logsData.status === 'ok') {
+                        this.scheduler.logs = logsData.logs;
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch scheduler:', e);
+                }
+            },
+
+            async updateConfig(changes) {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/reboot-scheduler/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(changes)
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.scheduler.config = data.config;
+                        this.showToast('Config updated', 'success');
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to update config', 'error');
+                }
+            },
+
+            async toggleScheduler() {
+                await this.updateConfig({ enabled: !this.scheduler.config.enabled });
+            },
+
+            async triggerManualRestart() {
+                if (!confirm('Trigger manual restart? Players will be warned.')) return;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/reboot-scheduler/trigger', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason: 'manual' })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        await this.refreshSchedulerStatus();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to trigger restart', 'error');
+                }
+            },
+
+            async cancelCountdown() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/reboot-scheduler/cancel', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        await this.refreshSchedulerStatus();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to cancel', 'error');
+                }
+            },
+
+            // ===== CoreProtect Maintenance =====
+
+            async refreshCoreprotectStatus() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/coreprotect/status');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.coreprotect = {
+                            enabled: data.enabled,
+                            retention_days: data.retention_days,
+                            purge_hour: data.purge_hour,
+                            last_purge: data.last_purge,
+                            next_purge: data.next_purge,
+                            purge_running: data.purge_running
+                        };
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch CoreProtect status:', e);
+                }
+            },
+
+            async toggleCoreprotect() {
+                await this.updateCoreprotectConfig({
+                    coreprotect_purge_enabled: !this.coreprotect.enabled
+                });
+            },
+
+            async updateCoreprotectConfig(changes) {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/coreprotect/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(changes)
+                    });
+                    const data = await response.json();
+                    if (data.success && data.coreprotect) {
+                        this.coreprotect = {
+                            enabled: data.coreprotect.enabled,
+                            retention_days: data.coreprotect.retention_days,
+                            purge_hour: data.coreprotect.purge_hour,
+                            last_purge: data.coreprotect.last_purge,
+                            next_purge: data.coreprotect.next_purge,
+                            purge_running: data.coreprotect.purge_running
+                        };
+                        this.showToast('CoreProtect config updated', 'success');
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to update CoreProtect config', 'error');
+                }
+            },
+
+            async triggerPurge() {
+                if (!confirm(`Delete CoreProtect logs older than ${this.coreprotect.retention_days} days?`)) return;
+
+                this.coreprotect.purge_running = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/coreprotect/purge', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        await this.refreshCoreprotectStatus();
+                        await this.refreshSchedulerStatus();
+                    } else {
+                        this.showToast('Purge failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to trigger purge', 'error');
+                } finally {
+                    this.coreprotect.purge_running = false;
+                }
+            },
+
+            // ===== Moderation =====
+
+            openBanModal(player) {
+                this.banForm.player = player;
+                this.activeTab = 'moderation';
+            },
+
+            openWarnModal(player) {
+                this.warnForm.player = player;
+                this.activeTab = 'moderation';
+            },
+
+            async kickPlayer(player) {
+                if (!confirm(`Kick ${player} from the server?`)) return;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/kick', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ player, reason: 'Kicked by admin' })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        this.refreshPlayerList();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to kick player', 'error');
+                }
+            },
+
+            async tempbanPlayer() {
+                if (!this.banForm.player.trim()) {
+                    this.showToast('Enter a player name', 'error');
+                    return;
+                }
+                if (!confirm(`Ban ${this.banForm.player} for ${this.banForm.duration}?`)) return;
+                this.banning = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/tempban', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.banForm)
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        this.banForm.player = '';
+                        this.banForm.reason = 'Rule violation';
+                        this.refreshPlayerList();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to ban player', 'error');
+                } finally {
+                    this.banning = false;
+                }
+            },
+
+            async warnPlayer() {
+                if (!this.warnForm.player.trim() || !this.warnForm.reason.trim()) {
+                    this.showToast('Player name and reason required', 'error');
+                    return;
+                }
+                if (!confirm(`Issue warning to ${this.warnForm.player}?`)) return;
+                this.warning = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/warn', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.warnForm)
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        let msg = data.message;
+                        if (data.escalation_recommendation) {
+                            msg += ` (${data.escalation_recommendation})`;
+                        }
+                        this.showToast(msg, 'success');
+                        this.warnForm.player = '';
+                        this.warnForm.reason = '';
+                        this.fetchWarnings();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to issue warning', 'error');
+                } finally {
+                    this.warning = false;
+                }
+            },
+
+            async sendBroadcast() {
+                if (!this.broadcastMessage.trim()) return;
+                if (!confirm('Send this broadcast to all players?')) return;
+                this.broadcasting = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/broadcast', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: this.broadcastMessage })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Broadcast sent!', 'success');
+                        this.broadcastMessage = '';
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to send broadcast', 'error');
+                } finally {
+                    this.broadcasting = false;
+                }
+            },
+
+            // ===== Server Logs =====
+
+            async fetchServerLogs() {
+                this.loadingLogs = true;
+                try {
+                    let url = '/minecraft/admin/api/minecraft/server-logs?lines=200';
+                    if (this.logSearch.trim()) {
+                        url += `&search=${encodeURIComponent(this.logSearch.trim())}`;
+                    }
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.serverLogs = data.logs || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch logs:', e);
+                } finally {
+                    this.loadingLogs = false;
+                }
+            },
+
+            // ===== Whitelist =====
+
+            async fetchWhitelist() {
+                if (!this.serverRunning) return;
+                this.loadingWhitelist = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/whitelist');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.whitelist = data.players || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch whitelist:', e);
+                } finally {
+                    this.loadingWhitelist = false;
+                }
+            },
+
+            async addToWhitelist() {
+                if (!this.whitelistPlayer.trim()) return;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/whitelist/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ player: this.whitelistPlayer })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        this.whitelistPlayer = '';
+                        this.fetchWhitelist();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to add to whitelist', 'error');
+                }
+            },
+
+            async removeFromWhitelist(player) {
+                if (!confirm(`Remove ${player} from whitelist?`)) return;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/whitelist/remove', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ player })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        this.fetchWhitelist();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to remove from whitelist', 'error');
+                }
+            },
+
+            // ===== CoreProtect Lookup =====
+
+            async performLookup() {
+                this.lookupLoading = true;
+                this.lookupResults = [];
+                try {
+                    let url = '/minecraft/admin/api/minecraft/coreprotect/lookup?';
+                    if (this.lookupType === 'player') {
+                        url += `player=${encodeURIComponent(this.lookupPlayer)}`;
+                    } else {
+                        url += `x=${this.lookupCoords.x}&y=${this.lookupCoords.y}&z=${this.lookupCoords.z}&radius=${this.lookupCoords.radius}`;
+                    }
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.lookupResults = data.results || [];
+                    } else {
+                        this.showToast('Lookup failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to perform lookup', 'error');
+                } finally {
+                    this.lookupLoading = false;
+                }
+            },
+
+            // ===== Warnings =====
+
+            async fetchWarnings() {
+                this.loadingWarnings = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/warnings?limit=50');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.warningsList = data.warnings || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch warnings:', e);
+                } finally {
+                    this.loadingWarnings = false;
+                }
+            },
+
+            async lookupPlayerWarnings() {
+                if (!this.warningLookupPlayer.trim()) return;
+                try {
+                    const response = await fetch(`/minecraft/admin/api/minecraft/warnings/${encodeURIComponent(this.warningLookupPlayer)}`);
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.playerWarnings = data;
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to lookup warnings', 'error');
+                }
+            },
+
+            async deleteWarning(warningId) {
+                if (!confirm('Delete this warning?')) return;
+                try {
+                    const response = await fetch(`/minecraft/admin/api/minecraft/warnings/${warningId}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        this.fetchWarnings();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to delete warning', 'error');
+                }
+            },
+
+            // ==================== WATCHLIST METHODS ====================
+            async loadWatchlist() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/watchlist');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.watchlistEntries = data.entries || [];
+                        this.watchlistStats = data.stats || {};
+                    }
+                } catch (e) {
+                    console.error('Failed to load watchlist:', e);
+                }
+            },
+
+            async addToWatchlist() {
+                if (!this.watchlistForm.player.trim() || !this.watchlistForm.reason.trim()) {
+                    this.showToast('Player name and reason are required', 'error');
+                    return;
+                }
+                this.watchlistAdding = true;
+                try {
+                    const tags = this.watchlistForm.tags.split(',').map(t => t.trim()).filter(t => t);
+                    const response = await fetch('/minecraft/admin/api/watchlist', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            player: this.watchlistForm.player,
+                            level: this.watchlistForm.level,
+                            reason: this.watchlistForm.reason,
+                            evidence_notes: this.watchlistForm.evidence_notes,
+                            tags: tags
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Added to watchlist', 'success');
+                        this.watchlistForm = { player: '', level: 'suspicious', reason: '', evidence_notes: '', tags: '', tagsArray: [], selectedTag: '' };
+                        this.loadWatchlist();
+                    } else {
+                        this.showToast(data.error || 'Failed to add to watchlist', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error adding to watchlist', 'error');
+                } finally {
+                    this.watchlistAdding = false;
+                }
+            },
+
+            async updateWatchlistLevel(entryId, newLevel) {
+                try {
+                    const response = await fetch(`/minecraft/admin/api/watchlist/${entryId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ level: newLevel })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Level updated', 'success');
+                    } else {
+                        this.showToast(data.error || 'Failed to update', 'error');
+                        this.loadWatchlist();
+                    }
+                } catch (e) {
+                    this.showToast('Error updating level', 'error');
+                    this.loadWatchlist();
+                }
+            },
+
+            async resolveWatchlistEntry(entryId, resolution) {
+                try {
+                    const response = await fetch(`/minecraft/admin/api/watchlist/${entryId}/resolve`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ resolution: resolution })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Entry resolved', 'success');
+                        this.loadWatchlist();
+                    } else {
+                        this.showToast(data.error || 'Failed to resolve', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error resolving entry', 'error');
+                }
+            },
+
+            async deleteWatchlistEntry(entryId) {
+                if (!confirm('Delete this watchlist entry permanently?')) return;
+                try {
+                    const response = await fetch(`/minecraft/admin/api/watchlist/${entryId}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Entry deleted', 'success');
+                        this.loadWatchlist();
+                    } else {
+                        this.showToast(data.error || 'Failed to delete', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error deleting entry', 'error');
+                }
+            },
+
+            // ==================== TAG MANAGEMENT ====================
+            async loadValidTags() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/watchlist/valid-tags');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.validTags = data.tags || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to load valid tags:', e);
+                }
+            },
+
+            addTagToForm() {
+                if (this.watchlistForm.selectedTag && !this.watchlistForm.tagsArray.includes(this.watchlistForm.selectedTag)) {
+                    this.watchlistForm.tagsArray.push(this.watchlistForm.selectedTag);
+                    this.watchlistForm.tags = this.watchlistForm.tagsArray.join(',');
+                }
+                this.watchlistForm.selectedTag = '';
+            },
+
+            removeTagFromForm(idx) {
+                this.watchlistForm.tagsArray.splice(idx, 1);
+                this.watchlistForm.tags = this.watchlistForm.tagsArray.join(',');
+            },
+
+            // ==================== COMMAND EXECUTION (GrimAC/mTrack) ====================
+            async runGrimacForPlayer(player) {
+                this.commandOutputModal = true;
+                this.commandOutputTitle = `GrimAC Profiles: ${player}`;
+                this.commandOutputContent = 'Running grimac profiles...';
+                try {
+                    const response = await fetch(`/minecraft/admin/api/investigation/grimac/${player}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        this.commandOutputContent = data.response || 'No output returned';
+                    } else {
+                        this.commandOutputContent = `Error: ${data.error || 'Failed to run command'}`;
+                    }
+                } catch (e) {
+                    this.commandOutputContent = `Error: ${e.message}`;
+                }
+            },
+
+            async runMtrackForPlayer(player) {
+                this.commandOutputModal = true;
+                this.commandOutputTitle = `mTrack Check: ${player}`;
+                this.commandOutputContent = 'Running mtrack check...';
+                try {
+                    const response = await fetch(`/minecraft/admin/api/investigation/mtrack/${player}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        this.commandOutputContent = data.response || 'No output returned';
+                    } else {
+                        this.commandOutputContent = `Error: ${data.error || 'Failed to run command'}`;
+                    }
+                } catch (e) {
+                    this.commandOutputContent = `Error: ${e.message}`;
+                }
+            },
+
+            // ==================== QUICK SPECTATE ====================
+            async quickSpectateRequest(player, level) {
+                const reason = level === 'confirmed-cheater' ? 'Confirmed cheater observation' : 'Investigation needed';
+                try {
+                    const response = await fetch('/minecraft/admin/api/spectator/request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            player: player,
+                            reason: reason,
+                            duration_minutes: level === 'confirmed-cheater' ? 30 : 15
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message || 'Spectate request created', 'success');
+                        this.loadPendingSpectators();
+                        this.loadActiveSpectators();
+                    } else {
+                        this.showToast(data.error || 'Failed to request spectate', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error creating spectate request', 'error');
+                }
+            },
+
+            async createSpectatorSession() {
+                if (!this.spectatorRequestForm.player.trim()) {
+                    this.showToast('Player name is required', 'error');
+                    return;
+                }
+                try {
+                    const response = await fetch('/minecraft/admin/api/spectator/request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            player: this.spectatorRequestForm.player,
+                            reason: this.spectatorRequestForm.reason,
+                            duration_minutes: this.spectatorRequestForm.duration
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message || 'Spectator session created', 'success');
+                        this.spectatorRequestForm = { player: '', reason: 'Admin investigation', duration: 30 };
+                        this.loadPendingSpectators();
+                        this.loadActiveSpectators();
+                    } else {
+                        this.showToast(data.error || 'Failed to create session', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error creating spectator session', 'error');
+                }
+            },
+
+            // ==================== STAFF SETTINGS ====================
+            async loadStaffSettings() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/staff-settings');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.staffSettings = data.staff || [];
+                        this.availableFeatures = data.available_features || {};
+                    }
+                } catch (e) {
+                    console.error('Failed to load staff settings:', e);
+                }
+            },
+
+            async toggleStaffFeature(staffEmail, feature, isCurrentlyHidden) {
+                try {
+                    const response = await fetch(`/minecraft/admin/api/staff-settings/${staffEmail}/toggle`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            feature: feature,
+                            visible: isCurrentlyHidden  // If currently hidden, make visible
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message || 'Setting updated', 'success');
+                        this.loadStaffSettings();
+                    } else {
+                        this.showToast(data.error || 'Failed to update setting', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error updating setting', 'error');
+                }
+            },
+
+            // ==================== WHITELIST AUTOCOMPLETE ====================
+            async loadWhitelistAutocomplete() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/whitelist/autocomplete');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.whitelistPlayers = data.players || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to load whitelist for autocomplete:', e);
+                }
+            },
+
+            // ==================== SPECTATOR METHODS ====================
+            async loadPendingSpectators() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/spectator/pending');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.pendingSpectatorRequests = data.requests || [];
+                        this.pendingSpectatorCount = this.pendingSpectatorRequests.length;
+                    }
+                } catch (e) {
+                    console.error('Failed to load pending spectators:', e);
+                }
+            },
+
+            async loadActiveSpectators() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/spectator/active');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.activeSpectatorSessions = data.sessions || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to load active spectators:', e);
+                }
+            },
+
+            async loadSpectatorStats() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/spectator/stats');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.spectatorStats = data.stats || {};
+                    }
+                } catch (e) {
+                    console.error('Failed to load spectator stats:', e);
+                }
+            },
+
+            async approveSpectator(sessionId) {
+                try {
+                    const response = await fetch(`/minecraft/admin/api/spectator/${sessionId}/approve`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Request approved', 'success');
+                        this.loadPendingSpectators();
+                        this.loadActiveSpectators();
+                    } else {
+                        this.showToast(data.error || 'Failed to approve', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error approving request', 'error');
+                }
+            },
+
+            async denySpectator(sessionId) {
+                const reason = prompt('Denial reason (optional):');
+                try {
+                    const response = await fetch(`/minecraft/admin/api/spectator/${sessionId}/deny`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason: reason || '' })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Request denied', 'success');
+                        this.loadPendingSpectators();
+                    } else {
+                        this.showToast(data.error || 'Failed to deny', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error denying request', 'error');
+                }
+            },
+
+            async revokeSpectator(sessionId) {
+                if (!confirm('Revoke this spectator session?')) return;
+                try {
+                    const response = await fetch(`/minecraft/admin/api/spectator/${sessionId}/revoke`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Session revoked', 'success');
+                        this.loadActiveSpectators();
+                        this.loadSpectatorStats();
+                    } else {
+                        this.showToast(data.error || 'Failed to revoke', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error revoking session', 'error');
+                }
+            },
+
+            showToast(message, type = 'info') {
+                this.toast = { show: true, message, type };
+                setTimeout(() => this.toast.show = false, 3000);
+            }
+        }
+    }
+</script>
+{% endblock %}

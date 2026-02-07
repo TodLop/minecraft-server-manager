@@ -1,0 +1,26 @@
+# --- Web Frameworks & UI ---
+fastapi
+uvicorn[standard]
+jinja2
+itsdangerous
+
+# --- Data Manipulation & Utilities ---
+requests
+python-dotenv
+pydantic
+pyyaml
+
+# --- HTTP Client ---
+httpx>=0.27.0
+
+# --- Google Cloud & API Client Libraries ---
+google-api-python-client
+google-auth-oauthlib
+google-auth
+
+# --- Database ---
+sqlalchemy>=2.0.36
+alembic>=1.14.0
+
+# --- Security ---
+bcrypt

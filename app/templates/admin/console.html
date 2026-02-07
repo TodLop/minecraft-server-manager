@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+
+{% block title %}Server Console - Minecraft Admin{% endblock %}
+
+{% block content %}
+<div x-data="serverConsole()" x-init="init()" class="min-h-screen bg-[#050505]">
+    <header class="border-b border-green-500/20 bg-[#0a0a0a]/80 backdrop-blur-sm sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <a href="/minecraft/admin" class="text-slate-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                    </a>
+                    <h1 class="font-orbitron text-xl md:text-2xl text-white">
+                        <span class="text-green-400">SERVER</span> CONSOLE
+                    </h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full"
+                            :class="serverRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
+                        <span class="text-sm" :class="serverRunning ? 'text-green-400' : 'text-red-400'"
+                            x-text="serverRunning ? 'ONLINE' : 'OFFLINE'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="glass-panel rounded-xl p-4 border border-green-500/20 mb-6">
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex gap-2">
+                    <button @click="startServer()" :disabled="serverRunning || loading"
+                        class="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Start</span>
+                    </button>
+
+                    <button @click="stopServer()" :disabled="!serverRunning || loading"
+                        class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg border border-red-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                        </svg>
+                        <span>Stop</span>
+                    </button>
+
+                    <button @click="restartServer()" :disabled="loading"
+                        class="px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg border border-yellow-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Restart</span>
+                    </button>
+                </div>
+
+                <div class="flex-1 flex items-center justify-end gap-6 text-sm">
+                    <div class="text-slate-400">
+                        PID: <span class="text-white font-mono" x-text="serverPid || '-'"></span>
+                    </div>
+                    <div class="text-slate-400">
+                        Players: <span class="text-green-400 font-mono"
+                            x-text="playersOnline + '/' + maxPlayers"></span>
+                    </div>
+                    <div class="text-slate-400">
+                        RCON: <span :class="rconEnabled ? 'text-green-400' : 'text-red-400'"
+                            x-text="rconEnabled ? 'ON' : 'OFF'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel rounded-xl border border-slate-700/30 overflow-hidden mb-4 relative">
+            <div class="flex items-center justify-between px-4 py-2 bg-slate-800/50 border-b border-slate-700/30">
+                <span class="text-sm font-mono text-slate-400">Console Output</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500" x-text="wsConnected ? 'Live' : 'Disconnected'"></span>
+                    <span class="w-2 h-2 rounded-full" :class="wsConnected ? 'bg-green-500' : 'bg-red-500'"></span>
+                    <button @click="clearLogs()" class="text-xs text-slate-500 hover:text-white ml-2">Clear</button>
+                </div>
+            </div>
+
+            <div id="console-output" class="overflow-y-auto bg-[#0a0a0a] font-mono text-sm p-4 space-y-1 relative"
+                x-ref="consoleOutput"
+                :style="`height: ${consoleHeight}px`">
+                <div x-show="loadingOlder" class="text-center py-2 text-slate-500 text-xs">
+                    Loading older logs...
+                </div>
+                <div x-show="!hasMoreLogs && logs.length > 0" class="text-center py-2 text-slate-600 text-xs">
+                    — Beginning of log —
+                </div>
+
+                <template x-for="(log, index) in logs" :key="index">
+                    <div class="leading-relaxed" :class="{
+                             'text-red-400': log.message && (log.message.includes('ERROR') || log.message.includes('Exception')),
+                             'text-yellow-400': log.message && log.message.includes('WARN'),
+                             'text-cyan-400': log.message && log.message.includes('INFO'),
+                             'text-slate-300': !(log.message && (log.message.includes('ERROR') || log.message.includes('WARN') || log.message.includes('INFO'))),
+                             'bg-purple-500/10 border-l-2 border-purple-500 pl-2 -ml-2': log.isCommandResponse
+                          }">
+                        <span class="text-slate-600" x-text="log.time ? '[' + log.time + '] ' : ''"></span>
+                        <span x-text="log.message"></span>
+                    </div>
+                </template>
+                <div x-show="logs.length === 0" class="text-slate-600">No logs yet. Start the server to see console
+                    output.</div>
+            </div>
+
+            <button x-show="userScrolledUp" @click="scrollToBottom(true)" x-transition
+                class="absolute bottom-20 right-8 px-3 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30 text-xs flex items-center gap-1 shadow-lg">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                New logs
+            </button>
+
+            <!-- Resize handle -->
+            <div @mousedown="startResize($event)"
+                class="h-3 bg-slate-800/30 border-t border-slate-700/30 cursor-ns-resize hover:bg-slate-700/50 transition-colors flex items-center justify-center group"
+                :class="{ 'bg-green-500/20': isResizing }">
+                <div class="w-12 h-1 bg-slate-600/50 rounded-full group-hover:bg-slate-500"></div>
+            </div>
+        </div>
+
+        <div class="glass-panel rounded-xl p-4 border border-slate-700/30">
+            <form @submit.prevent="sendCommand()" class="flex gap-3">
+                <div class="flex-1 relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-green-400 font-mono">></span>
+                    <input type="text" x-model="commandInput" :disabled="!serverRunning"
+                        placeholder="Enter command (e.g., list, say Hello, op PlayerName)"
+                        class="w-full pl-8 pr-4 py-3 bg-[#0a0a0a] border border-slate-700/30 rounded-lg text-white font-mono focus:outline-none focus:border-green-500/50 disabled:opacity-50 disabled:cursor-not-allowed">
+                </div>
+                <button type="submit" :disabled="!serverRunning || !commandInput.trim()"
+                    class="px-6 py-3 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    Send
+                </button>
+            </form>
+            <p class="text-xs text-slate-500 mt-2">
+                <span x-show="!rconEnabled" class="text-yellow-500">
+                    RCON is disabled. Commands sent via stdin (no response feedback).
+                    <a href="#" @click.prevent="enableRcon()" class="underline">Enable RCON</a>
+                </span>
+                <span x-show="rconEnabled">Commands sent via RCON. Responses will appear in console.</span>
+            </p>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+            <span class="text-sm text-slate-500 mr-2">Quick:</span>
+            <button @click="commandInput = 'list'; sendCommand()" :disabled="!serverRunning"
+                class="px-3 py-1 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded disabled:opacity-50">
+                list
+            </button>
+            <button @click="commandInput = 'tps'; sendCommand()" :disabled="!serverRunning"
+                class="px-3 py-1 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded disabled:opacity-50">
+                tps
+            </button>
+            <button @click="commandInput = 'gc'; sendCommand()" :disabled="!serverRunning"
+                class="px-3 py-1 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded disabled:opacity-50">
+                gc
+            </button>
+            <button @click="commandInput = 'save-all'; sendCommand()" :disabled="!serverRunning"
+                class="px-3 py-1 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded disabled:opacity-50">
+                save-all
+            </button>
+        </div>
+    </main>
+
+    <div x-show="toast.show" x-transition class="fixed bottom-4 right-4 p-4 rounded-lg border z-50" :class="toast.type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-300' :
+                 toast.type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-300' :
+                 'bg-slate-700/50 border-slate-600/30 text-slate-300'">
+        <p class="text-sm" x-text="toast.message"></p>
+    </div>
+</div>
+
+<script>
+    function serverConsole() {
+        return {
+            logs: [],
+            commandInput: '',
+            // 수정됨: Jinja2 문법 오류 및 객체 닫힘 오류 수정
+            serverRunning: {{ 'true' if server_status.running else 'false' }},
+            serverPid: {{ server_status.pid or 'null' }},
+            playersOnline: {{ server_status.players_online or 0 }},
+            maxPlayers: {{ server_status.max_players or 20 }},
+            rconEnabled: {{ 'true' if rcon_enabled else 'false' }},
+            
+            wsConnected: false,
+            ws: null,
+            loading: false,
+            loadingOlder: false,
+            hasMoreLogs: true,
+            userScrolledUp: false,
+            toast: { show: false, message: '', type: 'info' },
+            highlightUntil: 0, // Timestamp until which new logs should be highlighted
+
+            // Resizable console
+            consoleHeight: 384, // Default height in pixels (h-96 = 24rem = 384px)
+            isResizing: false,
+            startY: 0,
+            startHeight: 0,
+
+            init() {
+                this.connectWebSocket();
+                // Don't call fetchInitialLogs() - WebSocket sends initial logs on connect
+                this.pollStatus();
+                this.setupScrollDetection();
+                this.loadConsoleHeight();
+            },
+
+            setupScrollDetection() {
+                this.$nextTick(() => {
+                    const el = this.$refs.consoleOutput;
+                    if (el) {
+                        el.addEventListener('scroll', () => {
+                            // Check if user scrolled away from bottom
+                            const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 50;
+                            this.userScrolledUp = !isAtBottom;
+
+                            // Load older logs when scrolling to top
+                            if (el.scrollTop < 100 && !this.loadingOlder && this.hasMoreLogs) {
+                                this.loadOlderLogs();
+                            }
+                        });
+                    }
+                });
+            },
+
+            connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/minecraft/admin/ws/minecraft/logs`;
+
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = () => {
+                    this.wsConnected = true;
+                    console.log('WebSocket connected');
+                };
+
+                this.ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'heartbeat') return;
+
+                    // Deduplicate: check if this is the same as the last log entry
+                    if (this.logs.length > 0) {
+                        const lastLog = this.logs[this.logs.length - 1];
+                        if (lastLog.time === data.time && lastLog.message === data.message) {
+                            return; // Skip duplicate
+                        }
+                    }
+
+                    // Mark as command response only if:
+                    // 1. Within highlight window AND
+                    // 2. Log timestamp is recent (within 2 minutes of current time)
+                    if (Date.now() < this.highlightUntil && data.time) {
+                        const now = new Date();
+                        const logTimeParts = data.time.match(/(\d{2}):(\d{2}):(\d{2})/);
+                        if (logTimeParts) {
+                            const logHour = parseInt(logTimeParts[1]);
+                            const logMin = parseInt(logTimeParts[2]);
+                            const nowHour = now.getHours();
+                            const nowMin = now.getMinutes();
+                            // Only highlight if log is from within last 2 minutes
+                            const logTotalMin = logHour * 60 + logMin;
+                            const nowTotalMin = nowHour * 60 + nowMin;
+                            const diff = Math.abs(nowTotalMin - logTotalMin);
+                            if (diff <= 2 || diff >= 1438) { // Handle midnight wrap
+                                data.isCommandResponse = true;
+                            }
+                        }
+                    }
+
+                    this.logs.push(data);
+                    // Keep only last 500 lines
+                    if (this.logs.length > 500) {
+                        this.logs = this.logs.slice(-500);
+                    }
+                    this.scrollToBottom();
+                };
+
+                this.ws.onclose = () => {
+                    this.wsConnected = false;
+                    console.log('WebSocket disconnected, reconnecting...');
+                    setTimeout(() => this.connectWebSocket(), 3000);
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    this.wsConnected = false;
+                };
+            },
+
+            async loadOlderLogs() {
+                if (this.loadingOlder || !this.hasMoreLogs) return;
+                this.loadingOlder = true;
+
+                try {
+                    // Load logs older than what we have (use offset)
+                    const offset = this.logs.length;
+                    const response = await fetch(`/minecraft/admin/api/minecraft/server/logs?lines=100&offset=${offset}`);
+                    const data = await response.json();
+
+                    if (data.status === 'ok' && data.logs && data.logs.length > 0) {
+                        // Prepend older logs
+                        const el = this.$refs.consoleOutput;
+                        const oldScrollHeight = el.scrollHeight;
+
+                        this.logs = [...data.logs, ...this.logs];
+
+                        // Maintain scroll position after prepending
+                        this.$nextTick(() => {
+                            el.scrollTop = el.scrollHeight - oldScrollHeight;
+                        });
+                    } else {
+                        this.hasMoreLogs = false;
+                    }
+                } catch (e) {
+                    console.error('Failed to load older logs:', e);
+                } finally {
+                    this.loadingOlder = false;
+                }
+            },
+
+            async pollStatus() {
+                setInterval(async () => {
+                    try {
+                        const response = await fetch('/minecraft/admin/api/minecraft/server/status');
+                        const data = await response.json();
+                        if (data.status === 'ok') {
+                            this.serverRunning = data.server.running;
+                            this.serverPid = data.server.pid;
+                            this.playersOnline = data.server.players_online || 0;
+                            this.maxPlayers = data.server.max_players || 20;
+                            this.rconEnabled = data.rcon.enabled;
+                        }
+                    } catch (e) {
+                        console.error('Status poll failed:', e);
+                    }
+                }, 5000);
+            },
+
+            scrollToBottom(force = false) {
+                // Only auto-scroll if user hasn't scrolled up (or force is true)
+                if (this.userScrolledUp && !force) return;
+
+                this.$nextTick(() => {
+                    const el = this.$refs.consoleOutput;
+                    if (el) el.scrollTop = el.scrollHeight;
+                });
+            },
+
+            clearLogs() {
+                this.logs = [];
+            },
+
+            async startServer() {
+                this.loading = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/start', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Server starting...', 'success');
+                        this.serverRunning = true;
+                        this.serverPid = data.pid;
+                    } else {
+                        this.showToast('Failed: ' + data.error, 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to start server', 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async stopServer() {
+                if (!confirm('Are you sure you want to stop the server?')) return;
+
+                this.loading = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/stop', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Server stopped', 'success');
+                        this.serverRunning = false;
+                        this.serverPid = null;
+                    } else {
+                        this.showToast('Failed: ' + data.error, 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to stop server', 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async restartServer() {
+                if (!confirm('Are you sure you want to restart the server?')) return;
+
+                this.loading = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/restart', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Server restarting...', 'success');
+                    } else {
+                        this.showToast('Failed: ' + data.error, 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to restart server', 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async sendCommand() {
+                const command = this.commandInput.trim();
+                if (!command) return;
+
+                try {
+                    // Set highlight window for next 5 seconds
+                    this.highlightUntil = Date.now() + 5000;
+
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command })
+                    });
+                    const data = await response.json();
+
+                    // Add command to log display with highlight
+                    this.logs.push({
+                        time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+                        message: `> ${command}`,
+                        isCommandResponse: true
+                    });
+
+                    if (data.success && data.response) {
+                        this.logs.push({
+                            time: '',
+                            message: data.response,
+                            isCommandResponse: true
+                        });
+                    } else if (data.success && !data.response) {
+                        // Async command (plugin) - show hint
+                        this.logs.push({
+                            time: '',
+                            message: '(Waiting for async response... check logs below)',
+                            isCommandResponse: true
+                        });
+                    }
+
+                    this.scrollToBottom();
+                    this.commandInput = '';
+
+                } catch (e) {
+                    this.showToast('Failed to send command', 'error');
+                }
+            },
+
+            async enableRcon() {
+                if (!confirm('Enable RCON? This will update server.properties and require a server restart to take effect.')) return;
+
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/enable-rcon', { method: 'POST' });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.showToast('RCON enabled! Restart the server to apply.', 'success');
+                        // Note: Password is auto-generated and saved to server.properties
+                        // User doesn't need to know it since CORA uses it internally
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to enable RCON', 'error');
+                }
+            },
+
+            showToast(message, type = 'info') {
+                this.toast = { show: true, message, type };
+                setTimeout(() => this.toast.show = false, 4000);
+            },
+
+            // Console resizing methods
+            loadConsoleHeight() {
+                const saved = localStorage.getItem('consoleHeight');
+                if (saved) {
+                    this.consoleHeight = parseInt(saved);
+                }
+            },
+
+            startResize(event) {
+                this.isResizing = true;
+                this.startY = event.clientY;
+                this.startHeight = this.consoleHeight;
+
+                // Prevent text selection while dragging
+                event.preventDefault();
+
+                // Add global event listeners
+                document.addEventListener('mousemove', this.handleResize.bind(this));
+                document.addEventListener('mouseup', this.stopResize.bind(this));
+            },
+
+            handleResize(event) {
+                if (!this.isResizing) return;
+
+                const deltaY = event.clientY - this.startY;
+                let newHeight = this.startHeight + deltaY;
+
+                // Enforce min/max height
+                newHeight = Math.max(200, Math.min(newHeight, window.innerHeight - 300));
+
+                this.consoleHeight = newHeight;
+            },
+
+            stopResize(event) {
+                if (!this.isResizing) return;
+
+                this.isResizing = false;
+
+                // Save to localStorage
+                localStorage.setItem('consoleHeight', this.consoleHeight.toString());
+
+                // Remove global event listeners
+                document.removeEventListener('mousemove', this.handleResize.bind(this));
+                document.removeEventListener('mouseup', this.stopResize.bind(this));
+            }
+        }
+    }
+</script>
+{% endblock %}

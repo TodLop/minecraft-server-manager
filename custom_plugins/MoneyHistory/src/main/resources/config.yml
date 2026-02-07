@@ -1,0 +1,61 @@
+# MoneyHistory Configuration
+
+# Balance monitoring settings
+monitoring:
+  # How often to poll player balances (in seconds)
+  poll-interval-seconds: 10
+
+  # Detect balance changes for offline players on login
+  enable-offline-detection: true
+
+  # Ignore balance changes smaller than this (to filter rounding errors)
+  unknown-threshold: 0.01
+
+# Attribution pattern settings
+attribution:
+  # How long to remember player commands for attribution (in seconds)
+  command-memory-seconds: 30
+
+  # Admin command detection patterns
+  admin-command-patterns:
+    # Minimum amount to consider as "round number" for admin command detection
+    round-number-threshold: 1000
+
+    # Multiple to check for round numbers (e.g., 1000, 1500, 2000)
+    round-number-multiple: 100
+
+# Database settings
+database:
+  # Number of entries to batch before writing to database
+  batch-size: 100
+
+  # Maximum delay before flushing batch writes (in seconds)
+  batch-delay-seconds: 2
+
+  # Enable daily database backups
+  enable-daily-backup: true
+
+# Display settings
+display:
+  # Number of entries to show per page
+  entries-per-page: 10
+
+  # Maximum number of pages to allow
+  max-pages: 100
+
+  # Show help text for unknown sources
+  show-unknown-help: true
+
+  # Use relative time ("2 hours ago") instead of absolute timestamps
+  use-relative-time: true
+
+# Maintenance settings
+maintenance:
+  # Enable automatic cleanup (NOT RECOMMENDED - manual cleanup preferred)
+  enable-auto-cleanup: false
+
+  # Log operations that take longer than this threshold
+  log-slow-operations: true
+
+  # Slow operation threshold in milliseconds
+  slow-threshold-ms: 50
