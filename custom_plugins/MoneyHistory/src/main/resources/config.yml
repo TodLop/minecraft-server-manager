@@ -24,6 +24,14 @@ attribution:
     # Multiple to check for round numbers (e.g., 1000, 1500, 2000)
     round-number-multiple: 100
 
+# Server account revenue routing
+server-account:
+  enabled: true
+  account-name: "nearoutpost"
+  route-uc-revenue: true
+  route-pa-tax: true
+  pa-tax-rate: 0.02
+
 # Database settings
 database:
   # Number of entries to batch before writing to database

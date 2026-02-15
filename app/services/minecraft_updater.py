@@ -10,6 +10,7 @@ Handles version checking, downloading, and updating for:
 import json
 import hashlib
 import shutil
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -32,7 +33,7 @@ MODRINTH_API = "https://api.modrinth.com/v2"
 
 # HTTP client settings
 TIMEOUT = 30.0
-USER_AGENT = "CORA-MinecraftUpdater/1.0 (hjjang.dev)"
+USER_AGENT = "MinecraftServerManager-Updater/1.0"
 
 
 @dataclass
@@ -520,7 +521,70 @@ def backup_plugin(plugin_id: str, filename: str) -> Path:
 
     shutil.copy2(source, backup_path)
 
+    # Clean up old backups for this file
+    _cleanup_old_backups(filename, keep=5)
+
     return backup_path
+
+
+def _cleanup_old_backups(original_filename: str, keep: int = 5) -> None:
+    """
+    Delete old backup files, keeping only the most recent N versions.
+
+    For versioned files (Paper, plugins), groups all versions together.
+    Examples:
+        - paper-1.21.11-100.jar → matches all paper-*.jar.*.bak
+        - grimac-bukkit-2.3.73-cd86c14.jar → matches all grimac-bukkit-*.jar.*.bak
+        - Geyser-Spigot.jar → matches Geyser-Spigot.jar.*.bak (exact)
+
+    Args:
+        original_filename: Original JAR filename (e.g., "paper-1.21.11-110.jar")
+        keep: Number of recent backups to preserve per file pattern
+    """
+    import re
+
+    # Normalize filename to base pattern for grouping
+    # paper-1.21.11-100.jar → paper-*.jar
+    # grimac-bukkit-2.3.73-cd86c14.jar → grimac-bukkit-*.jar
+    # Geyser-Spigot.jar → Geyser-Spigot.jar (no version, keep exact)
+
+    # Remove .jar extension for processing
+    base = original_filename.replace('.jar', '')
+
+    # Try to identify versioned pattern (contains digits)
+    if re.search(r'-?\d+\.\d+', base):
+        # Has version numbers - extract base name before version
+        # paper-1.21.11-100 → paper
+        # grimac-bukkit-2.3.73-cd86c14 → grimac-bukkit
+        # ViaVersion-5.7.0 → ViaVersion
+        parts = re.split(r'-\d+\.\d+', base, maxsplit=1)
+        if parts and parts[0]:
+            backup_pattern = f"{parts[0]}-*.jar.*.bak"
+        else:
+            # Fallback to exact match
+            backup_pattern = f"{original_filename}.*.bak"
+    else:
+        # No version pattern detected, use exact match
+        backup_pattern = f"{original_filename}.*.bak"
+
+    # Find all backups matching this pattern
+    backup_files = sorted(
+        BACKUPS_PATH.glob(backup_pattern),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True  # Newest first
+    )
+
+    # Delete old backups beyond retention limit
+    files_to_delete = backup_files[keep:]
+    if files_to_delete:
+        logging.info(f"Cleaning up {len(files_to_delete)} old backups for pattern: {backup_pattern}")
+
+    for backup_file in files_to_delete:
+        try:
+            backup_file.unlink()
+            logging.info(f"Deleted old backup: {backup_file.name}")
+        except Exception as e:
+            logging.warning(f"Failed to delete backup {backup_file.name}: {e}")
 
 
 def verify_hash(filepath: Path, expected_sha256: str = None, expected_sha512: str = None) -> bool:

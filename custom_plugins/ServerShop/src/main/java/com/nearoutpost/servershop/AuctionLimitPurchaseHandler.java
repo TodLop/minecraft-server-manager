@@ -119,6 +119,9 @@ public class AuctionLimitPurchaseHandler {
         plugin.getLogger().info(player.getName() + " purchased auction limit tier " + currentTier + "->" + nextTier +
             " for " + nextTierPrice + " (permission: " + permission + ")");
 
+        ServerShop.depositToServerAccount(nextTierPrice,
+            player.getName() + " bought auction limit " + currentTier + "->" + nextTier);
+
         return true;
     }
 

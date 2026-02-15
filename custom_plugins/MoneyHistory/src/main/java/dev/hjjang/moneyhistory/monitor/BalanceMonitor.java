@@ -3,6 +3,7 @@ package dev.hjjang.moneyhistory.monitor;
 import dev.hjjang.moneyhistory.MoneyHistoryPlugin;
 import dev.hjjang.moneyhistory.database.HistoryRecorder;
 import dev.hjjang.moneyhistory.database.NameCacheService;
+import dev.hjjang.moneyhistory.model.AttributionResult;
 import dev.hjjang.moneyhistory.model.BalanceChange;
 import dev.hjjang.moneyhistory.model.Source;
 import dev.hjjang.moneyhistory.vault.VaultIntegration;
@@ -111,7 +112,7 @@ public class BalanceMonitor implements Listener {
             // Check if balance changed significantly
             if (Math.abs(delta) > threshold) {
                 // Balance changed, record it
-                Source source = attributionResolver.resolveSource(uuid, delta, cachedBalance, currentBalance);
+                AttributionResult result = attributionResolver.resolveSource(uuid, delta, cachedBalance, currentBalance);
 
                 BalanceChange change = new BalanceChange(
                     uuid,
@@ -119,12 +120,37 @@ public class BalanceMonitor implements Listener {
                     System.currentTimeMillis(),
                     cachedBalance,
                     currentBalance,
-                    source,
-                    null
+                    result.getSource(),
+                    result.getDetails()
                 );
+
+                Source source = result.getSource();
 
                 historyRecorder.record(change);
                 changesDetected++;
+
+                // Route revenue to server account
+                if (plugin.getConfigManager().isServerAccountEnabled()) {
+                    Economy serverEconomy = vaultIntegration.getEconomy();
+                    String serverAccount = plugin.getConfigManager().getServerAccountName();
+
+                    // UC revenue: player spent money on cosmetics → deposit to server
+                    if (source == Source.ULTRA_COSMETICS && delta < 0 && plugin.getConfigManager().isRouteUcRevenue()) {
+                        double revenue = Math.abs(delta);
+                        serverEconomy.depositPlayer(serverAccount, revenue);
+                        logServerAccountDeposit("UltraCosmetics", revenue, player.getName(), result.getDetails());
+                    }
+
+                    // PA tax: seller received money → calculate and deposit the tax that was destroyed
+                    if (source == Source.PLAYER_AUCTION && delta > 0 && plugin.getConfigManager().isRoutePaTax()) {
+                        double taxRate = plugin.getConfigManager().getPaTaxRate();
+                        double salePrice = delta / (1.0 - taxRate);
+                        double tax = salePrice * taxRate;
+                        serverEconomy.depositPlayer(serverAccount, tax);
+                        logServerAccountDeposit("PlayerAuctions", tax, player.getName(),
+                            String.format("Tax on %.2f sale (%.0f%%)", salePrice, taxRate * 100));
+                    }
+                }
 
                 // Update cache
                 balanceCache.put(uuid, currentBalance);
@@ -191,6 +217,18 @@ public class BalanceMonitor implements Listener {
         // Update cache
         balanceCache.put(uuid, currentBalance);
         nameCacheService.updateLastBalance(uuid, currentBalance);
+    }
+
+    private void logServerAccountDeposit(String sourcePlugin, double amount, String playerName, String details) {
+        try {
+            Class.forName("dev.hjjang.serveraccount.api.ServerAccountAPI")
+                 .getMethod("deposit", double.class, String.class, String.class, String.class)
+                 .invoke(null, amount, sourcePlugin, playerName, details);
+        } catch (ClassNotFoundException ignored) {
+            // ServerAccount plugin not installed
+        } catch (Exception e) {
+            plugin.getLogger().warning("ServerAccount logging failed: " + e.getMessage());
+        }
     }
 
     public boolean isRunning() {

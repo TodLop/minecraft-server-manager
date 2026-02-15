@@ -1,27 +1,10 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 
 {% block title %}Access Denied - Plugin Documentation{% endblock %}
 
-{% block head %}
-<style>
-    .glass-card {
-        background: rgba(10, 10, 15, 0.6);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(168, 85, 247, 0.15);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="min-h-screen bg-[#050505] text-slate-300 font-sans flex items-center justify-center p-4">
-    <!-- Background Pattern -->
-    <div class="fixed inset-0 opacity-30 pointer-events-none">
-        <div class="absolute inset-0"
-            style="background-image: radial-gradient(rgba(168, 85, 247, 0.1) 1px, transparent 1px); background-size: 40px 40px;">
-        </div>
-    </div>
+    {% include "components/nearoutpost/background_pattern.html" %}
 
     <div class="glass-card rounded-2xl p-8 max-w-md w-full text-center relative z-10">
         <!-- Icon -->

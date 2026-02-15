@@ -1,19 +1,16 @@
-"""
-Authentication and authorization utilities for Project Octopus.
-Handles admin role checking and route protection.
-"""
+"""Authentication and authorization utilities."""
 
 import os
 from typing import Optional
-from fastapi import Request, HTTPException
+
+from fastapi import HTTPException, Request
 
 from app.core.config import STAFF_EMAILS
+from app.services import permissions as permissions_service
 
-# Admin email whitelist - loaded from environment variable
-# Set ADMIN_EMAILS in .env as comma-separated emails
-_admin_emails_str = os.getenv("ADMIN_EMAILS", "")
+_admin_emails = os.getenv("ADMIN_EMAILS", "admin@example.com")
 ADMIN_EMAILS = frozenset(
-    email.strip() for email in _admin_emails_str.split(",") if email.strip()
+    email.strip().lower() for email in _admin_emails.split(",") if email.strip()
 )
 
 
@@ -31,14 +28,14 @@ def is_admin(user_info: Optional[dict]) -> bool:
     """Check if user has admin privileges."""
     if not user_info:
         return False
-    return user_info.get("email") in ADMIN_EMAILS
+    return user_info.get("email", "").lower() in ADMIN_EMAILS
 
 
 def is_staff(user_info: Optional[dict]) -> bool:
-    """Check if user is a staff member (limited permissions)."""
+    """Check if user is a staff member."""
     if not user_info:
         return False
-    return user_info.get("email") in STAFF_EMAILS
+    return user_info.get("email", "").lower() in STAFF_EMAILS
 
 
 def is_admin_or_staff(user_info: Optional[dict]) -> bool:
@@ -53,43 +50,40 @@ def is_admin_request(request: Request) -> bool:
 
 
 async def require_auth(request: Request) -> dict:
-    """
-    FastAPI dependency: require authenticated user.
-    Raises 401 if not authenticated.
-    """
+    """Require authenticated user."""
     user_info = get_current_user(request)
     if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required"
-        )
+        raise HTTPException(status_code=401, detail="Authentication required")
     return user_info
 
 
 async def require_admin(request: Request) -> dict:
-    """
-    FastAPI dependency: require admin user.
-    Raises 401 if not authenticated, 403 if not admin.
-    """
+    """Require admin user."""
     user_info = await require_auth(request)
     if not is_admin(user_info):
-        raise HTTPException(
-            status_code=403,
-            detail="Admin access required"
-        )
+        raise HTTPException(status_code=403, detail="Admin access required")
     return user_info
 
 
 async def require_staff(request: Request) -> dict:
-    """
-    FastAPI dependency: require staff or admin user.
-    Raises 401 if not authenticated, 403 if not staff/admin.
-    """
+    """Require staff or admin user."""
     user_info = await require_auth(request)
     if not is_admin_or_staff(user_info):
-        raise HTTPException(
-            status_code=403,
-            detail="Staff access required"
-        )
+        raise HTTPException(status_code=403, detail="Staff access required")
     return user_info
 
+
+def require_permission(permission: str):
+    """FastAPI dependency factory for RBAC permissions."""
+
+    async def dependency(request: Request) -> dict:
+        user_info = await require_staff(request)
+        if is_admin(user_info):
+            return user_info
+
+        email = user_info.get("email", "").lower()
+        if not permissions_service.has_permission(email, permission):
+            raise HTTPException(status_code=403, detail=f"Permission denied: {permission}")
+        return user_info
+
+    return dependency

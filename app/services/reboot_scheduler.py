@@ -320,6 +320,16 @@ class RebootScheduler:
         # Check CoreProtect purge (runs independently of reboot scheduler)
         await self._check_coreprotect_purge()
 
+        # Skip if backup is in progress (mutual exclusion)
+        try:
+            from app.services.backup_scheduler import get_backup_scheduler
+            backup = get_backup_scheduler()
+            backup_state = backup.status.state.value if hasattr(backup.status.state, 'value') else str(backup.status.state)
+            if backup_state not in ("disabled", "monitoring"):
+                return  # Backup in progress, skip reboot check
+        except Exception:
+            pass
+
         # Handle disabled state
         if not self.config.enabled:
             self.status.state = SchedulerState.DISABLED

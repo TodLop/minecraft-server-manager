@@ -11,12 +11,15 @@ Uses JSON file storage with thread-safe operations.
 """
 
 import json
+import logging
 import threading
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from app.core.config import DATA_DIR
+
+logger = logging.getLogger(__name__)
 
 # File path
 NOTIFICATIONS_FILE = DATA_DIR / "plugin_notifications.json"
@@ -41,7 +44,7 @@ def _load_notifications() -> dict:
         with open(NOTIFICATIONS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        print(f"[PluginNotifications] Error loading: {e}")
+        logger.error("Error loading: %s", e)
         return {"notifications": []}
 
 
@@ -53,7 +56,7 @@ def _save_notifications(data: dict) -> bool:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
     except IOError as e:
-        print(f"[PluginNotifications] Error saving: {e}")
+        logger.error("Error saving: %s", e)
         return False
 
 

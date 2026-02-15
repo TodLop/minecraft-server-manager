@@ -1,0 +1,19 @@
+{
+  "name": "NEAR OUTPOST",
+  "short_name": "NEAR OUTPOST",
+  "icons": [
+    {
+      "src": "/static/favicon/nearoutpost/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/favicon/nearoutpost/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#f97316",
+  "background_color": "#050206",
+  "display": "standalone"
+}

@@ -7,6 +7,7 @@ Admins can add/edit/remove entries; staff can view only.
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,8 @@ from dataclasses import dataclass, asdict, field
 import threading
 
 from app.core.config import DATA_DIR, PROTECTED_PLAYERS
+
+logger = logging.getLogger(__name__)
 
 # Watchlist file path
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
@@ -64,7 +67,7 @@ def _load_watchlist() -> dict:
         with open(WATCHLIST_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        print(f"[Watchlist] Error loading watchlist file: {e}")
+        logger.error("Error loading watchlist file: %s", e)
         return {"entries": []}
 
 
@@ -76,7 +79,7 @@ def _save_watchlist(data: dict) -> bool:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
     except IOError as e:
-        print(f"[Watchlist] Error saving watchlist file: {e}")
+        logger.error("Error saving watchlist file: %s", e)
         return False
 
 

@@ -1,0 +1,7 @@
+# ServerAccount Configuration
+
+# The Vault account name used as the server treasury
+account-name: "nearoutpost"
+
+# Number of entries per page in /sa history
+history-per-page: 10

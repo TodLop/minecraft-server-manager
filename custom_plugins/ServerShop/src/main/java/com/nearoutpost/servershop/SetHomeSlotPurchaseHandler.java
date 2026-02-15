@@ -117,6 +117,9 @@ public class SetHomeSlotPurchaseHandler {
         plugin.getLogger().info(player.getName() + " purchased sethome slot tier " + currentTier + "->" + nextTier +
             " for " + nextTierPrice + " (permissions: essentials.sethome.multiple, " + permission + ")");
 
+        ServerShop.depositToServerAccount(nextTierPrice,
+            player.getName() + " bought sethome tier " + currentTier + "->" + nextTier);
+
         return true;
     }
 

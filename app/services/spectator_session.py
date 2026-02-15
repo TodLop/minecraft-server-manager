@@ -21,6 +21,8 @@ import threading
 from app.core.config import DATA_DIR, ROOT_DIR
 from app.services.watchlist import get_watchlist_entry_by_player, get_watchlist_entry
 
+logger = logging.getLogger(__name__)
+
 # Spectator sessions file path
 SESSIONS_FILE = DATA_DIR / "spectator_sessions.json"
 
@@ -102,7 +104,7 @@ def _load_sessions() -> dict:
         with open(SESSIONS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        print(f"[Spectator] Error loading file: {e}")
+        logger.error("Error loading file: %s", e)
         return {"sessions": []}
 
 
@@ -114,7 +116,7 @@ def _save_sessions(data: dict) -> bool:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
     except IOError as e:
-        print(f"[Spectator] Error saving file: {e}")
+        logger.error("Error saving file: %s", e)
         return False
 
 

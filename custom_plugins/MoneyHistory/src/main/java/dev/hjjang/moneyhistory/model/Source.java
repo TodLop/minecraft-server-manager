@@ -6,6 +6,7 @@ public enum Source {
     ESSENTIALS_RECEIVE("Essentials (received)"),
     ESSENTIALS_SELL("Essentials (/sell)"),
     SERVER_SHOP("ServerShop"),
+    ULTRA_COSMETICS("Ultra Cosmetics"),
     ADMIN_COMMAND("Admin Command"),
     LIKELY_ADMIN_COMMAND("Likely Admin Command"),
     OFFLINE_CHANGE("Offline Change"),

@@ -4,7 +4,7 @@ main: dev.hjjang.moneyhistory.MoneyHistoryPlugin
 api-version: '1.21'
 description: Track and query player balance changes with attribution
 author: hjjang
-website: https://hjjang.dev
+website: https://example.com
 
 depend:
   - Vault

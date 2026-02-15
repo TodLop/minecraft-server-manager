@@ -88,6 +88,8 @@ public class CraftAccessHandler {
         // Log to console
         plugin.getLogger().info(player.getName() + " purchased crafting table access for " + price + " (permission: " + permission + ")");
 
+        ServerShop.depositToServerAccount(price, player.getName() + " bought craft access");
+
         return true;
     }
 

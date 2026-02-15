@@ -138,7 +138,7 @@ Inspect `/data/minecraft_server_paper/logs/latest.log` for:
 If something goes wrong, restore the old version:
 
 ```bash
-cd /Users/jang/Coding/CORA-live/data/minecraft_server_paper/plugins
+cd /path/to/minecraft_server_paper/plugins
 cp ServerShop-backup-20260207.jar ServerShop.jar
 rm -f .paper-remapped/ServerShop.jar
 # Restart server

@@ -1,65 +1,65 @@
 import os
 from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette.middleware.sessions import SessionMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
-from app.core.config import STATIC_DIR, ENV_FILE, TEMPLATES_DIR
+from app.core.config import APP_VERSION, ENV_FILE, STATIC_DIR, TEMPLATES_DIR
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan event handler for startup/shutdown"""
-    # Startup
-    from app.services import minecraft_server
-    from app.services import reboot_scheduler
+    """Lifespan event handler for startup/shutdown."""
+    from app.services import backup_scheduler, minecraft_server, reboot_scheduler
 
     if await minecraft_server.ensure_log_tailer_running():
-        print("✅ Minecraft server detected, log tailer started")
+        print("Minecraft server detected, log tailer started")
     else:
-        print("ℹ️  Minecraft server not running")
+        print("Minecraft server not running")
 
-    # Start reboot scheduler
     await reboot_scheduler.start_scheduler()
-    print("✅ Reboot scheduler started")
+    print("Reboot scheduler started")
 
-    yield  # App runs here
+    await backup_scheduler.start_scheduler()
+    print("Backup scheduler started")
 
-    # Shutdown
+    try:
+        from app.services import permissions as permissions_service
+
+        permissions_service.migrate_from_v1()
+    except Exception:
+        pass
+
+    yield
+
+    await backup_scheduler.stop_scheduler()
     await reboot_scheduler.stop_scheduler()
-    print("👋 App shutting down")
+    print("App shutting down")
 
 
 def create_app():
-    """
-    FastAPI application factory.
-    Minecraft Server Management System
-    """
-    # Load environment variables
+    """FastAPI application factory."""
     load_dotenv(dotenv_path=ENV_FILE)
 
-    # Require SECRET_KEY for session security
     secret_key = os.getenv("SECRET_KEY")
     if not secret_key:
         raise ValueError("ERROR: SECRET_KEY is missing in .env file!")
 
-    # Create app instance
     app = FastAPI(
         title="Minecraft Server Manager",
-        version="1.0.0",
+        version=APP_VERSION,
         docs_url=None,
         redoc_url=None,
-        lifespan=lifespan
+        lifespan=lifespan,
     )
 
-    # Templates for error pages
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-    # Custom 404 exception handler
     @app.exception_handler(StarletteHTTPException)
     async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
         accept_header = request.headers.get("accept", "")
@@ -69,42 +69,45 @@ def create_app():
             return templates.TemplateResponse(
                 "error.html",
                 {"request": request},
-                status_code=404
+                status_code=404,
+            )
+
+        if exc.status_code == 403 and is_browser_request and request.url.path.startswith("/minecraft/plugins"):
+            return templates.TemplateResponse(
+                "plugins/access_denied.html",
+                {
+                    "request": request,
+                    "user_info": request.state.user if hasattr(request.state, "user") else {},
+                },
+                status_code=403,
             )
 
         from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail}
-        )
 
-    # Middleware
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
     app.add_middleware(SessionMiddleware, secret_key=secret_key)
 
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["*"]  # Configure for your domain
+        allowed_hosts=["*"],
     )
 
-    # Static files
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     else:
-        print(f"⚠️ Warning: Static directory not found at {STATIC_DIR}")
+        print(f"Warning: Static directory not found at {STATIC_DIR}")
 
-    # Router Registration (Minecraft management only)
-    from app.routers import minecraft, admin, staff, plugin_docs
+    from app.routers import admin, plugin_docs, staff
 
-    # Admin Panel (restricted to ADMIN_EMAILS)
     app.include_router(admin.router, tags=["Admin"])
-
-    # Staff Panel (restricted to STAFF_EMAILS + ADMIN_EMAILS)
     app.include_router(staff.router, tags=["Staff"])
-
-    # Plugin Documentation (shared by staff + admins)
     app.include_router(plugin_docs.router, tags=["PluginDocs"])
 
-    # Minecraft Wrapped (player stats pages)
-    app.include_router(minecraft.router, tags=["Minecraft"])
+    enable_wrapped = os.getenv("ENABLE_WRAPPED_PAGES", "false").lower() in {"1", "true", "yes"}
+    if enable_wrapped:
+        from app.routers import minecraft
+
+        app.include_router(minecraft.router, tags=["Minecraft"])
 
     return app

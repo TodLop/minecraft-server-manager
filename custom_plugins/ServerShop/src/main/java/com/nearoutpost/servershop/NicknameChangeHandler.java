@@ -115,6 +115,8 @@ public class NicknameChangeHandler {
         // Log to console with improved format
         plugin.getLogger().info(player.getName() + " (" + currentNickname + ") purchased nickname change to '" + newNickname + "' for " + price);
 
+        ServerShop.depositToServerAccount(price, player.getName() + " bought nickname change");
+
         return true;
     }
 

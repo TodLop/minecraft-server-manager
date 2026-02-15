@@ -20,26 +20,16 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import TEMPLATES_DIR, PROTECTED_PLAYERS, DATA_DIR
-
-# Minecraft username validation: 3-16 chars, alphanumeric + underscore only
-PLAYER_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_]{3,16}$')
-
-
-def extract_username(display_name: str) -> str:
-    """
-    Extract the actual Minecraft username from a display name that may include
-    titles/prefixes like [Dragon_Rider]hjjang17 or [VIP]player_name
-
-    Patterns handled:
-    - [Title]username -> username
-    - [Title] username -> username (with space)
-    - username -> username (no title)
-    """
-    # Pattern: Match optional [anything] prefix, then capture the username
-    match = re.match(r'(?:\[.*?\]\s*)?([a-zA-Z0-9_]{3,16})$', display_name.strip())
-    if match:
-        return match.group(1)
-    return display_name.strip()
+from app.services.minecraft_utils import (
+    PLAYER_NAME_PATTERN, extract_username, sanitize_reason,
+    parse_player_list, format_grimac_report,
+)
+from app.services.moderation_shared import (
+    deny_if_protected,
+    normalize_player,
+    sanitize_moderation_reason,
+    validate_player_name,
+)
 
 # Audit logger for staff actions
 audit_logger = logging.getLogger("staff_audit")
@@ -57,8 +47,9 @@ if not audit_logger.handlers:
         datefmt='%Y-%m-%d %H:%M:%S'
     ))
     audit_logger.addHandler(handler)
-from app.core.auth import require_staff, is_admin
+from app.core.auth import require_staff, require_permission, is_admin
 from app.services import minecraft_server
+from app.services import permissions as permissions_service
 
 router = APIRouter(prefix="/minecraft/staff", tags=["Staff"])
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -69,36 +60,43 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 async def staff_minecraft_dashboard(request: Request, user_info: dict = Depends(require_staff)):
     """Staff Minecraft dashboard with limited controls"""
     server_status = minecraft_server.get_server_status()
-    
+
     # Get online players list if server is running
     online_players = []
     if server_status.running:
         try:
-            # Get player list via RCON
             result = await minecraft_server.send_command("list")
             if result.get("success") and result.get("response"):
-                response = result["response"]
-                # Parse player names from "There are X of Y players online: player1, player2"
-                if ":" in response:
-                    players_part = response.split(":")[-1].strip()
-                    if players_part and players_part.lower() != "":
-                        # Extract clean usernames (strip titles like [Dragon_Rider])
-                        online_players = [extract_username(p.strip()) for p in players_part.split(",") if p.strip()]
+                online_players = parse_player_list(result["response"])
         except Exception as e:
-            print(f"[Staff] Error getting player list: {e}")
-    
+            logging.getLogger(__name__).warning(f"Error getting player list: {e}")
+
+    # RBAC: get permissions and visible modules for template rendering
+    staff_email = user_info.get("email", "")
+    user_is_admin = is_admin(user_info)
+    if user_is_admin:
+        user_permissions = sorted(permissions_service.ALL_PERMISSIONS)
+        visible_modules = sorted(set(
+            m["module"] for m in permissions_service.PERMISSION_METADATA.values()
+        ))
+    else:
+        user_permissions = sorted(permissions_service.get_effective_permissions(staff_email))
+        visible_modules = permissions_service.get_user_visible_modules(staff_email)
+
     return templates.TemplateResponse("staff/minecraft.html", {
         "request": request,
         "user_info": user_info,
-        "is_admin": is_admin(user_info),
+        "is_admin": user_is_admin,
         "server_status": server_status,
         "online_players": online_players,
         "protected_players": list(PROTECTED_PLAYERS),
+        "user_permissions": user_permissions,
+        "visible_modules": visible_modules,
     })
 
 
 @router.get("/api/minecraft/status")
-async def get_staff_server_status(user_info: dict = Depends(require_staff)):
+async def get_staff_server_status(user_info: dict = Depends(require_permission("status:view"))):
     """Get server status for staff panel"""
     status = minecraft_server.get_server_status()
     return JSONResponse({
@@ -113,7 +111,7 @@ async def get_staff_server_status(user_info: dict = Depends(require_staff)):
 
 
 @router.get("/api/minecraft/players")
-async def get_online_players(user_info: dict = Depends(require_staff)):
+async def get_online_players(user_info: dict = Depends(require_permission("players:view"))):
     """Get list of online players"""
     status = minecraft_server.get_server_status()
     
@@ -123,14 +121,7 @@ async def get_online_players(user_info: dict = Depends(require_staff)):
     try:
         result = await minecraft_server.send_command("list")
         if result.get("success") and result.get("response"):
-            response = result["response"]
-            players = []
-            if ":" in response:
-                players_part = response.split(":")[-1].strip()
-                if players_part:
-                    # Extract clean usernames (strip titles like [Dragon_Rider])
-                    players = [extract_username(p.strip()) for p in players_part.split(",") if p.strip()]
-
+            players = parse_player_list(result["response"])
             return JSONResponse({
                 "status": "ok",
                 "players": players,
@@ -138,39 +129,46 @@ async def get_online_players(user_info: dict = Depends(require_staff)):
             })
     except Exception as e:
         return JSONResponse({"status": "error", "error": str(e)}, status_code=500)
-    
+
     return JSONResponse({"status": "ok", "players": [], "count": 0})
 
 
 @router.post("/api/minecraft/server/start")
-async def staff_start_server(user_info: dict = Depends(require_staff)):
+async def staff_start_server(request: Request, user_info: dict = Depends(require_permission("server:start"))):
     """Start the Minecraft server (staff access)"""
     staff_email = user_info.get("email", "unknown")
-    audit_logger.info(f"ACTION | staff={staff_email} | action=server_start")
-    result = await minecraft_server.start_server()
+    from app.services.audit_log import audit_event
+    audit_event(logger=audit_logger, actor=staff_email, action="server_start", result="requested")
+    from app.services.operations import execute_operation
+    result = await execute_operation(
+        key="server:start",
+        user_info=user_info,
+        idempotency_key=request.headers.get("Idempotency-Key"),
+    )
     if result.get("success"):
-        audit_logger.info(f"SUCCESS | staff={staff_email} | action=server_start")
+        audit_event(logger=audit_logger, actor=staff_email, action="server_start", result="success")
     else:
-        audit_logger.warning(f"FAILED | staff={staff_email} | action=server_start | error={result.get('error', 'unknown')}")
+        audit_logger.warning("server_start_failed")
     return JSONResponse(result)
 
 
 @router.post("/api/minecraft/server/restart")
-async def staff_restart_server(user_info: dict = Depends(require_staff)):
+async def staff_restart_server(request: Request, user_info: dict = Depends(require_permission("server:restart"))):
     """Restart the Minecraft server (staff access)"""
     staff_email = user_info.get("email", "unknown")
-    
-    # Check if staff has server_restart permission (admins always allowed)
-    if not is_admin(user_info) and not staff_settings_service.is_feature_visible(staff_email, "server_restart"):
-        audit_logger.warning(f"BLOCKED | staff={staff_email} | action=server_restart | reason=feature_disabled")
-        return JSONResponse({"success": False, "error": "Server restart is disabled for your account"}, status_code=403)
-    
-    audit_logger.info(f"ACTION | staff={staff_email} | action=server_restart")
-    result = await minecraft_server.restart_server()
+    # Permission already enforced by require_permission dependency
+    from app.services.audit_log import audit_event
+    audit_event(logger=audit_logger, actor=staff_email, action="server_restart", result="requested")
+    from app.services.operations import execute_operation
+    result = await execute_operation(
+        key="server:restart",
+        user_info=user_info,
+        idempotency_key=request.headers.get("Idempotency-Key"),
+    )
     if result.get("success"):
-        audit_logger.info(f"SUCCESS | staff={staff_email} | action=server_restart")
+        audit_event(logger=audit_logger, actor=staff_email, action="server_restart", result="success")
     else:
-        audit_logger.warning(f"FAILED | staff={staff_email} | action=server_restart | error={result.get('error', 'unknown')}")
+        audit_logger.warning("server_restart_failed")
     return JSONResponse(result)
 
 
@@ -178,7 +176,7 @@ async def staff_restart_server(user_info: dict = Depends(require_staff)):
 
 
 @router.post("/api/minecraft/tempban")
-async def staff_tempban_player(request: Request, user_info: dict = Depends(require_staff)):
+async def staff_tempban_player(request: Request, user_info: dict = Depends(require_permission("moderation:tempban"))):
     """
     Temporarily ban a player (staff access).
     
@@ -188,24 +186,15 @@ async def staff_tempban_player(request: Request, user_info: dict = Depends(requi
         reason: str - Ban reason
     """
     body = await request.json()
-    # Extract clean username from display name (strips titles like [Dragon_Rider])
-    player = extract_username(body.get("player", "").strip())
+    player = normalize_player(body.get("player", ""))
     duration = body.get("duration", "").strip()
     reason = body.get("reason", "Staff action").strip()
 
     staff_email = user_info.get("email", "unknown")
 
-    # Validate inputs
-    if not player:
-        return JSONResponse({"success": False, "error": "Player name required"}, status_code=400)
-
-    # Security: Validate player name format to prevent command injection
-    if not PLAYER_NAME_PATTERN.match(player):
-        audit_logger.warning(f"REJECTED | staff={staff_email} | action=tempban | reason=invalid_player_name | input={player[:50]}")
-        return JSONResponse({
-            "success": False,
-            "error": "Invalid player name. Use 3-16 alphanumeric characters or underscores."
-        }, status_code=400)
+    ok, err = validate_player_name(player)
+    if not ok:
+        return JSONResponse({"success": False, "error": err}, status_code=400)
 
     allowed_durations = ["1h", "6h", "24h", "7d"]
     if duration not in allowed_durations:
@@ -214,22 +203,11 @@ async def staff_tempban_player(request: Request, user_info: dict = Depends(requi
             "error": f"Invalid duration. Allowed: {', '.join(allowed_durations)}"
         }, status_code=400)
 
-    # Security: Sanitize reason field to prevent command injection
-    # Limit to 100 chars, only allow safe characters (no newlines, semicolons, slashes, etc.)
-    reason = reason[:100]
-    reason = reason.replace('\n', ' ').replace('\r', ' ')  # Remove newlines
-    reason = re.sub(r'[^\w\s.,!?\-]', '', reason)  # Only alphanumeric, spaces, and safe punctuation
-    reason = ' '.join(reason.split())  # Normalize whitespace
-    if not reason:
-        reason = "Staff action"
+    reason = sanitize_moderation_reason(reason=reason, max_len=100, default="Staff action")
 
-    # Check protected players
-    if player.lower() in [p.lower() for p in PROTECTED_PLAYERS]:
-        audit_logger.warning(f"BLOCKED | staff={staff_email} | action=tempban | target={player} | reason=protected_player")
-        return JSONResponse({
-            "success": False,
-            "error": f"Cannot ban protected player: {player}"
-        }, status_code=403)
+    ok, err = deny_if_protected(player=player, allow_protected=False)
+    if not ok:
+        return JSONResponse({"success": False, "error": err}, status_code=403)
 
     # Send tempban command (requires EssentialsX or similar plugin)
     command = f"tempban {player} {duration} {reason}"
@@ -254,7 +232,7 @@ async def staff_tempban_player(request: Request, user_info: dict = Depends(requi
 # ============================================
 
 @router.post("/api/minecraft/kick")
-async def kick_player(request: Request, user_info: dict = Depends(require_staff)):
+async def kick_player(request: Request, user_info: dict = Depends(require_permission("moderation:kick"))):
     """
     Kick a player from the server (staff access).
 
@@ -263,38 +241,20 @@ async def kick_player(request: Request, user_info: dict = Depends(require_staff)
         reason: str - Kick reason (optional)
     """
     body = await request.json()
-    # Extract clean username from display name (strips titles like [Dragon_Rider])
-    player = extract_username(body.get("player", "").strip())
+    player = normalize_player(body.get("player", ""))
     reason = body.get("reason", "Kicked by staff").strip()
 
     staff_email = user_info.get("email", "unknown")
 
-    # Validate player name
-    if not player:
-        return JSONResponse({"success": False, "error": "Player name required"}, status_code=400)
+    ok, err = validate_player_name(player)
+    if not ok:
+        return JSONResponse({"success": False, "error": err}, status_code=400)
 
-    if not PLAYER_NAME_PATTERN.match(player):
-        audit_logger.warning(f"REJECTED | staff={staff_email} | action=kick | reason=invalid_player_name | input={player[:50]}")
-        return JSONResponse({
-            "success": False,
-            "error": "Invalid player name. Use 3-16 alphanumeric characters or underscores."
-        }, status_code=400)
+    reason = sanitize_moderation_reason(reason=reason, max_len=100, default="Kicked by staff")
 
-    # Sanitize reason
-    reason = reason[:100]
-    reason = reason.replace('\n', ' ').replace('\r', ' ')
-    reason = re.sub(r'[^\w\s.,!?\-]', '', reason)
-    reason = ' '.join(reason.split())
-    if not reason:
-        reason = "Kicked by staff"
-
-    # Check protected players
-    if player.lower() in [p.lower() for p in PROTECTED_PLAYERS]:
-        audit_logger.warning(f"BLOCKED | staff={staff_email} | action=kick | target={player} | reason=protected_player")
-        return JSONResponse({
-            "success": False,
-            "error": f"Cannot kick protected player: {player}"
-        }, status_code=403)
+    ok, err = deny_if_protected(player=player, allow_protected=False)
+    if not ok:
+        return JSONResponse({"success": False, "error": err}, status_code=403)
 
     # Send kick command
     command = f"kick {player} {reason}"
@@ -320,7 +280,7 @@ BROADCAST_COOLDOWN_SECONDS = 60
 
 
 @router.post("/api/minecraft/broadcast")
-async def broadcast_message(request: Request, user_info: dict = Depends(require_staff)):
+async def broadcast_message(request: Request, user_info: dict = Depends(require_permission("moderation:broadcast"))):
     """
     Send a server-wide broadcast message (staff access).
 
@@ -427,7 +387,7 @@ def filter_sensitive_logs(logs: list) -> list:
 async def get_staff_logs(
     lines: int = Query(default=200, le=500, ge=10),
     search: Optional[str] = Query(default=None, max_length=50),
-    user_info: dict = Depends(require_staff)
+    user_info: dict = Depends(require_permission("logs:view"))
 ):
     """
     Get filtered server logs (staff access).
@@ -476,7 +436,7 @@ async def get_staff_logs(
 # ============================================
 
 @router.get("/api/minecraft/whitelist")
-async def get_whitelist(user_info: dict = Depends(require_staff)):
+async def get_whitelist(user_info: dict = Depends(require_permission("whitelist:view"))):
     """Get current server whitelist with order information"""
     import json
     
@@ -516,7 +476,7 @@ async def get_whitelist(user_info: dict = Depends(require_staff)):
 
 
 @router.post("/api/minecraft/whitelist/add")
-async def whitelist_add(request: Request, user_info: dict = Depends(require_staff)):
+async def whitelist_add(request: Request, user_info: dict = Depends(require_permission("whitelist:add"))):
     """
     Add a player to the whitelist (staff access).
 
@@ -557,7 +517,7 @@ async def whitelist_add(request: Request, user_info: dict = Depends(require_staf
 
 
 @router.post("/api/minecraft/whitelist/remove")
-async def whitelist_remove(request: Request, user_info: dict = Depends(require_staff)):
+async def whitelist_remove(request: Request, user_info: dict = Depends(require_permission("whitelist:remove"))):
     """
     Remove a player from the whitelist (staff access).
 
@@ -565,19 +525,10 @@ async def whitelist_remove(request: Request, user_info: dict = Depends(require_s
         player: str - Player name to remove from whitelist
     """
     body = await request.json()
-    # Extract clean username from display name (strips titles like [Dragon_Rider])
-    player = extract_username(body.get("player", "").strip())
+    player = normalize_player(body.get("player", ""))
 
     staff_email = user_info.get("email", "unknown")
-
-    # Check if staff has permission to remove from whitelist (admins always have access)
-    if not is_admin(user_info):
-        if not staff_settings_service.is_feature_visible(staff_email, "whitelist_remove"):
-            audit_logger.warning(f"BLOCKED | staff={staff_email} | action=whitelist_remove | target={player} | reason=insufficient_permissions")
-            return JSONResponse({
-                "success": False,
-                "error": "You do not have permission to remove players from the whitelist. Contact an admin."
-            }, status_code=403)
+    # Permission already enforced by require_permission dependency
 
     # Validate player name
     if not player:
@@ -627,7 +578,7 @@ async def coreprotect_lookup(
     z: Optional[int] = Query(default=None),
     radius: int = Query(default=5, le=10, ge=1),
     limit: int = Query(default=50, le=100, ge=1),
-    user_info: dict = Depends(require_staff)
+    user_info: dict = Depends(require_permission("lookup:coreprotect"))
 ):
     """
     Query CoreProtect database for block changes (staff access, read-only).
@@ -709,7 +660,7 @@ from app.services import staff_settings as staff_settings_service
 
 
 @router.post("/api/minecraft/warn")
-async def warn_player(request: Request, user_info: dict = Depends(require_staff)):
+async def warn_player(request: Request, user_info: dict = Depends(require_permission("warnings:issue"))):
     """
     Issue a warning to a player (staff access).
 
@@ -726,33 +677,19 @@ async def warn_player(request: Request, user_info: dict = Depends(require_staff)
 
     staff_email = user_info.get("email", "unknown")
 
-    # Validate player name
-    if not player:
-        return JSONResponse({"success": False, "error": "Player name required"}, status_code=400)
-
-    if not PLAYER_NAME_PATTERN.match(player):
-        audit_logger.warning(f"REJECTED | staff={staff_email} | action=warn | reason=invalid_player_name | input={player[:50]}")
-        return JSONResponse({
-            "success": False,
-            "error": "Invalid player name. Use 3-16 alphanumeric characters or underscores."
-        }, status_code=400)
+    ok, err = validate_player_name(player)
+    if not ok:
+        return JSONResponse({"success": False, "error": err}, status_code=400)
 
     # Validate reason
     if not reason:
         return JSONResponse({"success": False, "error": "Warning reason required"}, status_code=400)
 
-    # Sanitize reason
-    reason = reason[:200]
-    reason = reason.replace('\n', ' ').replace('\r', ' ')
-    reason = ' '.join(reason.split())
+    reason = sanitize_moderation_reason(reason=reason, max_len=200, default="Warning")
 
-    # Check protected players
-    if player.lower() in [p.lower() for p in PROTECTED_PLAYERS]:
-        audit_logger.warning(f"BLOCKED | staff={staff_email} | action=warn | target={player} | reason=protected_player")
-        return JSONResponse({
-            "success": False,
-            "error": f"Cannot warn protected player: {player}"
-        }, status_code=403)
+    ok, err = deny_if_protected(player=player, allow_protected=False)
+    if not ok:
+        return JSONResponse({"success": False, "error": err}, status_code=403)
 
     # Issue the warning
     warning = warnings_service.issue_warning(player, reason, staff_email)
@@ -793,7 +730,7 @@ async def warn_player(request: Request, user_info: dict = Depends(require_staff)
 
 
 @router.get("/api/minecraft/warnings/{player}")
-async def get_player_warnings(player: str, user_info: dict = Depends(require_staff)):
+async def get_player_warnings(player: str, user_info: dict = Depends(require_permission("warnings:view"))):
     """
     Get warning history for a specific player (staff access).
     """
@@ -836,7 +773,7 @@ async def get_player_warnings(player: str, user_info: dict = Depends(require_sta
 @router.get("/api/minecraft/warnings")
 async def get_all_warnings(
     limit: int = Query(default=50, le=100, ge=1),
-    user_info: dict = Depends(require_staff)
+    user_info: dict = Depends(require_permission("warnings:view"))
 ):
     """
     Get all recent warnings (staff access).
@@ -861,7 +798,7 @@ async def get_all_warnings(
 
 
 @router.delete("/api/minecraft/warnings/{warning_id}")
-async def delete_warning(warning_id: str, user_info: dict = Depends(require_staff)):
+async def delete_warning(warning_id: str, user_info: dict = Depends(require_permission("warnings:delete"))):
     """
     Delete a warning by ID (staff access).
 
@@ -906,7 +843,7 @@ async def delete_warning(warning_id: str, user_info: dict = Depends(require_staf
 # ============================================
 
 @router.get("/api/watchlist")
-async def staff_get_watchlist(user_info: dict = Depends(require_staff)):
+async def staff_get_watchlist(user_info: dict = Depends(require_permission("watchlist:view"))):
     """Get all active watchlist entries (staff can view only)."""
     entries = watchlist_service.get_watchlist(include_resolved=False)
     stats = watchlist_service.get_watchlist_stats()
@@ -931,7 +868,7 @@ async def staff_get_watchlist(user_info: dict = Depends(require_staff)):
 
 
 @router.get("/api/watchlist/check/{player}")
-async def staff_check_player_watchlist(player: str, user_info: dict = Depends(require_staff)):
+async def staff_check_player_watchlist(player: str, user_info: dict = Depends(require_permission("watchlist:view"))):
     """Check if a player is on the watchlist (staff access)."""
     if not PLAYER_NAME_PATTERN.match(player):
         return JSONResponse({
@@ -966,7 +903,7 @@ async def staff_check_player_watchlist(player: str, user_info: dict = Depends(re
 # ============================================
 
 @router.get("/api/notes/{player}")
-async def staff_get_player_notes(player: str, user_info: dict = Depends(require_staff)):
+async def staff_get_player_notes(player: str, user_info: dict = Depends(require_permission("notes:view"))):
     """Get all notes for a player (staff access)."""
     if not PLAYER_NAME_PATTERN.match(player):
         return JSONResponse({
@@ -997,7 +934,7 @@ async def staff_get_player_notes(player: str, user_info: dict = Depends(require_
 
 
 @router.post("/api/notes")
-async def staff_add_note(request: Request, user_info: dict = Depends(require_staff)):
+async def staff_add_note(request: Request, user_info: dict = Depends(require_permission("notes:manage"))):
     """Add a note about a player (staff access)."""
     body = await request.json()
     player = body.get("player", "").strip()
@@ -1046,7 +983,7 @@ async def staff_add_note(request: Request, user_info: dict = Depends(require_sta
 
 
 @router.put("/api/notes/{note_id}")
-async def staff_update_note(note_id: str, request: Request, user_info: dict = Depends(require_staff)):
+async def staff_update_note(note_id: str, request: Request, user_info: dict = Depends(require_permission("notes:manage"))):
     """Update a note (staff can only edit own notes)."""
     body = await request.json()
     author_email = user_info.get("email", "unknown")
@@ -1075,7 +1012,7 @@ async def staff_update_note(note_id: str, request: Request, user_info: dict = De
 
 
 @router.delete("/api/notes/{note_id}")
-async def staff_delete_note(note_id: str, user_info: dict = Depends(require_staff)):
+async def staff_delete_note(note_id: str, user_info: dict = Depends(require_permission("notes:manage"))):
     """Delete a note (staff can only delete own notes)."""
     author_email = user_info.get("email", "unknown")
 
@@ -1096,7 +1033,7 @@ async def staff_delete_note(note_id: str, user_info: dict = Depends(require_staf
 # ============================================
 
 @router.post("/api/investigation/start")
-async def staff_start_investigation(request: Request, user_info: dict = Depends(require_staff)):
+async def staff_start_investigation(request: Request, user_info: dict = Depends(require_permission("investigation:manage"))):
     """
     Start an investigation session for a watchlisted player.
     Staff can only investigate players on the watchlist.
@@ -1147,7 +1084,7 @@ async def staff_start_investigation(request: Request, user_info: dict = Depends(
 
 
 @router.get("/api/investigation/active")
-async def staff_get_active_investigation(user_info: dict = Depends(require_staff)):
+async def staff_get_active_investigation(user_info: dict = Depends(require_permission("investigation:view"))):
     """Get the current active investigation for this staff member."""
     staff_email = user_info.get("email", "unknown")
 
@@ -1176,7 +1113,7 @@ async def staff_get_active_investigation(user_info: dict = Depends(require_staff
 async def staff_end_investigation(
     session_id: str,
     request: Request,
-    user_info: dict = Depends(require_staff)
+    user_info: dict = Depends(require_permission("investigation:manage"))
 ):
     """End an investigation session with findings."""
     body = await request.json()
@@ -1214,7 +1151,7 @@ async def staff_end_investigation(
 
 
 @router.get("/api/investigation/grimac/{player}")
-async def staff_run_grimac(player: str, user_info: dict = Depends(require_staff)):
+async def staff_run_grimac(player: str, user_info: dict = Depends(require_permission("investigation:grimac"))):
     """
     Get GrimAC violation history for a player from the database.
     Staff can only run this for watchlisted players.
@@ -1256,59 +1193,11 @@ async def staff_run_grimac(player: str, user_info: dict = Depends(require_staff)
     audit_logger.info(f"COMMAND | staff={staff_email} | action=grimac_history | target={player}")
 
     if result.get('success'):
-        # Format response for display
-        summary = result.get('summary', {})
-        violations = result.get('violations', [])
-        
-        # Create a formatted text response for the command output display
-        if summary.get('total_count', 0) == 0:
-            formatted_response = f"No violations found for {player}"
-            if result.get('note'):
-                formatted_response += f"\n({result.get('note')})"
-        else:
-            lines = [
-                f"╔══════════════════════════════════════════════════════════════╗",
-                f"║  GrimAC History: {player:<43} ║",
-                f"╠══════════════════════════════════════════════════════════════╣",
-                f"║  Total Violations: {summary.get('total_count', 0):<8} | Showing: {summary.get('showing', 0):<8} | Checks: {summary.get('unique_checks', 0):<3} ║",
-                f"╚══════════════════════════════════════════════════════════════╝",
-                "",
-                "[ Check Breakdown ]"
-            ]
-            for check, count in sorted(summary.get('checks_breakdown', {}).items(), key=lambda x: -x[1]):
-                bar = '█' * min(count, 20)
-                lines.append(f"  {check:<15} {count:>4}  {bar}")
-            
-            lines.append("")
-            lines.append("[ Violations by Date ]")
-            
-            # Group violations by date
-            from collections import defaultdict
-            by_date = defaultdict(list)
-            for v in violations:
-                date_part = v['created_at'].split(' ')[0]  # Extract date
-                by_date[date_part].append(v)
-            
-            # Show all grouped by date
-            for date in sorted(by_date.keys(), reverse=True):
-                day_violations = by_date[date]
-                lines.append(f"")
-                lines.append(f"─── {date} ({len(day_violations)} violations) ───")
-                for v in day_violations:
-                    time_part = v['created_at'].split(' ')[1]  # Extract time
-                    verbose = v['verbose'][:40] + '...' if len(v['verbose']) > 40 else v['verbose']
-                    lines.append(f"  {time_part} │ {v['check_name']:<12} VL:{v['violation_level']:<3} │ {verbose}")
-            
-            if summary.get('total_count', 0) > summary.get('showing', 0):
-                lines.append("")
-                lines.append(f"⚠️  Showing {summary.get('showing')} of {summary.get('total_count')} total violations")
-            
-            formatted_response = "\n".join(lines)
-        
+        formatted_response = format_grimac_report(player, result)
         return JSONResponse({
             "success": True,
             "response": formatted_response,
-            "data": result  # Include full data for potential UI enhancement
+            "data": result
         })
     else:
         return JSONResponse({
@@ -1318,7 +1207,7 @@ async def staff_run_grimac(player: str, user_info: dict = Depends(require_staff)
 
 
 @router.get("/api/investigation/mtrack/{player}")
-async def staff_run_mtrack(player: str, user_info: dict = Depends(require_staff)):
+async def staff_run_mtrack(player: str, user_info: dict = Depends(require_permission("investigation:mtrack"))):
     """
     Run mtrack check command for a player.
     Staff can only run this for watchlisted players.
@@ -1358,7 +1247,7 @@ async def staff_run_mtrack(player: str, user_info: dict = Depends(require_staff)
 
 
 @router.get("/api/investigation/history/{player}")
-async def staff_get_investigation_history(player: str, user_info: dict = Depends(require_staff)):
+async def staff_get_investigation_history(player: str, user_info: dict = Depends(require_permission("investigation:view"))):
     """Get investigation history for a player."""
     if not PLAYER_NAME_PATTERN.match(player):
         return JSONResponse({
@@ -1392,7 +1281,7 @@ async def staff_get_investigation_history(player: str, user_info: dict = Depends
 # ============================================
 
 @router.post("/api/spectator/request")
-async def staff_request_spectator(request: Request, user_info: dict = Depends(require_staff)):
+async def staff_request_spectator(request: Request, user_info: dict = Depends(require_permission("spectator:request"))):
     """
     Request a spectator session for a watchlisted player.
     Auto-approved for confirmed cheaters.
@@ -1443,7 +1332,7 @@ async def staff_request_spectator(request: Request, user_info: dict = Depends(re
 
 
 @router.get("/api/spectator/my-sessions")
-async def staff_get_my_spectator_sessions(user_info: dict = Depends(require_staff)):
+async def staff_get_my_spectator_sessions(user_info: dict = Depends(require_permission("spectator:view"))):
     """Get all spectator sessions for this staff member."""
     staff_email = user_info.get("email", "unknown")
 
@@ -1468,7 +1357,7 @@ async def staff_get_my_spectator_sessions(user_info: dict = Depends(require_staf
 
 
 @router.get("/api/spectator/approved")
-async def staff_get_approved_sessions(user_info: dict = Depends(require_staff)):
+async def staff_get_approved_sessions(user_info: dict = Depends(require_permission("spectator:view"))):
     """Get approved but not started spectator sessions for this staff member."""
     staff_email = user_info.get("email", "unknown")
 
@@ -1494,7 +1383,7 @@ async def staff_get_approved_sessions(user_info: dict = Depends(require_staff)):
 async def staff_start_spectator_session(
     session_id: str,
     request: Request,
-    user_info: dict = Depends(require_staff)
+    user_info: dict = Depends(require_permission("spectator:manage"))
 ):
     """Start an approved spectator session."""
     body = await request.json()
@@ -1526,7 +1415,7 @@ async def staff_start_spectator_session(
 async def staff_end_spectator_session(
     session_id: str,
     request: Request,
-    user_info: dict = Depends(require_staff)
+    user_info: dict = Depends(require_permission("spectator:manage"))
 ):
     """End a spectator session manually."""
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
@@ -1552,7 +1441,7 @@ async def staff_end_spectator_session(
 # ============================================
 
 @router.get("/investigation", response_class=HTMLResponse)
-async def staff_investigation_dashboard(request: Request, user_info: dict = Depends(require_staff)):
+async def staff_investigation_dashboard(request: Request, user_info: dict = Depends(require_permission("investigation:view"))):
     """Staff Investigation Dashboard page."""
     watchlist_entries = watchlist_service.get_watchlist(include_resolved=False)
     watchlist_stats = watchlist_service.get_watchlist_stats()
@@ -1580,7 +1469,7 @@ WHITELIST_CACHE_TTL = 300  # 5 minutes
 
 
 @router.get("/api/whitelist/autocomplete")
-async def staff_get_whitelist_autocomplete(user_info: dict = Depends(require_staff)):
+async def staff_get_whitelist_autocomplete(user_info: dict = Depends(require_permission("whitelist:view"))):
     """Get whitelist for autocomplete (cached)."""
     import time
 
@@ -1627,7 +1516,7 @@ async def staff_get_whitelist_autocomplete(user_info: dict = Depends(require_sta
 # ============================================
 
 @router.get("/api/watchlist/valid-tags")
-async def staff_get_valid_tags(user_info: dict = Depends(require_staff)):
+async def staff_get_valid_tags(user_info: dict = Depends(require_permission("watchlist:view"))):
     """Get list of valid watchlist tags."""
     return JSONResponse({
         "status": "ok",
@@ -1641,11 +1530,27 @@ async def staff_get_valid_tags(user_info: dict = Depends(require_staff)):
 
 @router.get("/api/my-settings")
 async def staff_get_my_settings(user_info: dict = Depends(require_staff)):
-    """Get current staff member's feature visibility settings."""
+    """Get current staff member's permissions and role info."""
     staff_email = user_info.get("email", "")
-    settings = staff_settings_service.get_staff_settings(staff_email)
+    user_is_admin = is_admin(user_info)
+
+    if user_is_admin:
+        user_permissions = sorted(permissions_service.ALL_PERMISSIONS)
+        visible_modules = sorted(set(
+            m["module"] for m in permissions_service.PERMISSION_METADATA.values()
+        ))
+        role = "admin"
+    else:
+        user_permissions = sorted(permissions_service.get_effective_permissions(staff_email))
+        visible_modules = permissions_service.get_user_visible_modules(staff_email)
+        rbac = permissions_service.get_user_rbac(staff_email)
+        role = rbac.role
 
     return JSONResponse({
         "status": "ok",
-        "hidden_features": settings.hidden_features
+        "role": role,
+        "permissions": user_permissions,
+        "visible_modules": visible_modules,
+        # Backwards compatibility
+        "hidden_features": staff_settings_service.get_staff_settings(staff_email).hidden_features,
     })

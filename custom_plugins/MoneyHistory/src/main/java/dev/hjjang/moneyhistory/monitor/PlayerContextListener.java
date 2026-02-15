@@ -26,7 +26,9 @@ public class PlayerContextListener implements Listener {
             lowerCommand.startsWith("/buy") ||
             lowerCommand.startsWith("/sell") ||
             lowerCommand.startsWith("/eco") ||
-            lowerCommand.startsWith("/economy")) {
+            lowerCommand.startsWith("/economy") ||
+            lowerCommand.startsWith("/uc") ||
+            lowerCommand.startsWith("/ultracosmetics")) {
 
             PlayerContext context = attributionResolver.getOrCreateContext(player.getUniqueId());
             context.recordCommand(command);

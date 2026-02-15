@@ -1,6 +1,9 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 
 {% block title %}Minecraft Server - Admin{% endblock %}
+
+{% import "components/nearoutpost/macros.html" as near %}
+{% import "components/nearoutpost/operation_card.html" as op_card %}
 
 {% block content %}
 <div x-data="minecraftAdmin()" x-init="init()" class="min-h-screen bg-[#050505]">
@@ -9,11 +12,7 @@
         <div class="max-w-[1600px] mx-auto px-4 py-3">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                    <a href="/" class="text-slate-400 hover:text-white transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                    </a>
+                    {{ near.back_button('/') }}
                     <h1 class="font-orbitron text-xl text-white">
                         <span class="text-green-400">MINECRAFT</span> SERVER
                     </h1>
@@ -37,6 +36,22 @@
                                 d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         Console
+                    </a>
+                    <a href="#" title="Disabled in OSS build"
+                        class="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg border border-purple-500/30 transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        Task Board
+                    </a>
+                    <a href="#" title="Disabled in OSS build"
+                        class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        Analytics
                     </a>
                     <a href="/minecraft/plugins" x-data="{ unreadCount: 0 }" x-init="fetch('/minecraft/plugins/api/notifications/unread').then(r => r.json()).then(d => unreadCount = d.count || 0)"
                         class="relative px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 rounded-lg border border-indigo-500/30 transition-all flex items-center gap-2">
@@ -166,6 +181,7 @@
 
         <!-- ==================== OVERVIEW TAB ==================== -->
         <div x-show="activeTab === 'overview'" x-transition>
+            <!-- Main Content Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <!-- LEFT COLUMN: Plugins -->
                 <div class="space-y-3">
@@ -181,14 +197,24 @@
                             {% for plugin_id, plugin in versions_data.plugins.items() %}
                             <div class="p-2.5 rounded-lg bg-[#0a0a0a] border border-slate-700/30 hover:border-green-500/30 transition-all">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <div class="w-10 h-10 rounded flex items-center justify-center font-bold text-white
-                                        {% if plugin_id == 'paper' %}bg-gradient-to-br from-slate-600 to-slate-700
-                                        {% elif plugin_id == 'grimac' %}bg-gradient-to-br from-red-500 to-red-700
-                                        {% elif plugin_id == 'viaversion' %}bg-gradient-to-br from-blue-500 to-blue-700
-                                        {% elif plugin_id == 'geyser' %}bg-gradient-to-br from-orange-500 to-orange-700
-                                        {% elif plugin_id == 'auctionhouseplus' %}bg-gradient-to-br from-yellow-500 to-amber-700
-                                        {% else %}bg-gradient-to-br from-purple-500 to-purple-700{% endif %}">
-                                        {{ plugin_id[:2].upper() }}
+                                    <div class="w-10 h-10 rounded flex items-center justify-center font-bold text-white overflow-hidden">
+                                        {% if plugin.source == 'modrinth' and plugin.project_id in plugin_icons %}
+                                        <img src="{{ plugin_icons[plugin.project_id] }}" alt="{{ plugin_id }}" class="w-full h-full object-cover">
+                                        {% elif plugin.source == 'modrinth' or plugin.source == 'papermc' %}
+                                        <div class="w-full h-full flex items-center justify-center
+                                            {% if plugin_id == 'paper' %}bg-gradient-to-br from-slate-600 to-slate-700
+                                            {% elif plugin_id == 'grimac' %}bg-gradient-to-br from-red-500 to-red-700
+                                            {% elif plugin_id == 'viaversion' %}bg-gradient-to-br from-blue-500 to-blue-700
+                                            {% elif plugin_id == 'geyser' %}bg-gradient-to-br from-orange-500 to-orange-700
+                                            {% elif plugin_id == 'auctionhouseplus' %}bg-gradient-to-br from-yellow-500 to-amber-700
+                                            {% else %}bg-gradient-to-br from-purple-500 to-purple-700{% endif %}">
+                                            {{ plugin_id[:2].upper() }}
+                                        </div>
+                                        {% else %}
+                                        <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500 to-purple-700">
+                                            {{ plugin_id[:2].upper() }}
+                                        </div>
+                                        {% endif %}
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <h4 class="font-semibold text-white truncate capitalize">{{ plugin_id }}</h4>
@@ -417,13 +443,275 @@
                         </div>
                     </div>
 
+                    <!-- Backup Automation -->
+                    <div id="backup-setup-panel" class="glass-panel rounded-lg p-3 border border-slate-700/30">
+                        <!-- Header -->
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                                Backup Automation
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <!-- Setup toggle link (always visible) -->
+                                <button @click="backup.showSetupGuide = !backup.showSetupGuide"
+                                        class="text-xs px-2 py-0.5 rounded border transition-colors"
+                                        :class="backup.showSetupGuide ? 'text-cyan-400 border-cyan-500/30' : 'text-slate-500 border-slate-700/30 hover:text-slate-300'">
+                                    Setup
+                                </button>
+                                <!-- Status badge -->
+                                <span class="px-2.5 py-1 rounded-lg font-medium ring-1 text-xs"
+                                      :class="!backup.setup.setup_complete ? 'bg-amber-500/20 text-amber-400 ring-amber-500/30' :
+                                              backup.status.state === 'disabled' ? 'bg-slate-800/80 text-slate-400 ring-slate-700/50' :
+                                              backup.status.state === 'monitoring' ? 'bg-cyan-500/20 text-cyan-400 ring-cyan-500/30' :
+                                              backup.status.state === 'countdown' ? 'bg-orange-500/20 text-orange-400 ring-orange-500/30 animate-pulse' :
+                                              ['stopping_server','compressing','uploading','restarting'].includes(backup.status.state) ? 'bg-blue-500/20 text-blue-400 ring-blue-500/30 animate-pulse' :
+                                              'bg-red-500/20 text-red-400 ring-red-500/30'"
+                                      x-text="!backup.setup.setup_complete ? 'SETUP REQUIRED' : backup.status.state.replace(/_/g, ' ').toUpperCase()">
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- ====== SETUP GUIDE (shown when incomplete or toggled) ====== -->
+                        <template x-if="backup.showSetupGuide">
+                            <div class="space-y-2 mb-3">
+                                <div class="p-3 rounded-lg bg-slate-800/60 border border-slate-700/40">
+                                    <p class="text-xs text-slate-400 mb-3 uppercase tracking-wider font-semibold">Setup Checklist</p>
+
+                                    <!-- Step 1: Service Account -->
+                                    <div class="flex items-start gap-2.5 mb-3">
+                                        <div class="w-5 h-5 mt-0.5 rounded-full flex items-center justify-center flex-shrink-0"
+                                             :class="backup.setup.service_account_exists ? 'bg-green-500/20 text-green-400' : 'bg-slate-700/50 text-slate-500'">
+                                            <span class="text-xs font-bold" x-text="backup.setup.service_account_exists ? '&#10003;' : '1'"></span>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium" :class="backup.setup.service_account_exists ? 'text-green-400' : 'text-white'">
+                                                Service Account Key
+                                            </p>
+                                            <p class="text-xs text-slate-500 mt-0.5">
+                                                Upload JSON to <code class="text-slate-400 bg-slate-800 px-1 rounded">config_files/service_account_backup.json</code>
+                                            </p>
+                                            <template x-if="backup.setup.service_account_email">
+                                                <p class="text-xs text-cyan-400 mt-1 font-mono truncate" x-text="backup.setup.service_account_email"></p>
+                                            </template>
+                                            <template x-if="!backup.setup.service_account_exists">
+                                                <p class="text-xs text-amber-400/70 mt-1">Not found &mdash; create one in Google Cloud Console</p>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- Step 2: Drive Folder -->
+                                    <div class="flex items-start gap-2.5 mb-3">
+                                        <div class="w-5 h-5 mt-0.5 rounded-full flex items-center justify-center flex-shrink-0"
+                                             :class="backup.setup.drive_folder_id_set ? 'bg-green-500/20 text-green-400' : 'bg-slate-700/50 text-slate-500'">
+                                            <span class="text-xs font-bold" x-text="backup.setup.drive_folder_id_set ? '&#10003;' : '2'"></span>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium" :class="backup.setup.drive_folder_id_set ? 'text-green-400' : 'text-white'">
+                                                Share Drive Folder
+                                            </p>
+                                            <p class="text-xs text-slate-500 mt-0.5">
+                                                Share a Google Drive folder with the service account email (Editor role), then paste the folder ID:
+                                            </p>
+                                            <input type="text" placeholder="Paste Google Drive folder ID"
+                                                   :value="backup.config.drive_folder_id"
+                                                   @change="updateBackupConfig({drive_folder_id: $event.target.value.trim()})"
+                                                   class="w-full mt-1.5 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white placeholder-slate-500 font-mono">
+                                        </div>
+                                    </div>
+
+                                    <!-- Step 3: Test Connection -->
+                                    <div class="flex items-start gap-2.5">
+                                        <div class="w-5 h-5 mt-0.5 rounded-full flex items-center justify-center flex-shrink-0"
+                                             :class="backup.setup.drive_connection_ok === true ? 'bg-green-500/20 text-green-400' : 'bg-slate-700/50 text-slate-500'">
+                                            <span class="text-xs font-bold" x-text="backup.setup.drive_connection_ok === true ? '&#10003;' : '3'"></span>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium" :class="backup.setup.drive_connection_ok === true ? 'text-green-400' : 'text-white'">
+                                                Test Connection
+                                            </p>
+                                            <div class="flex items-center gap-2 mt-1.5">
+                                                <button @click="testDriveConnection()"
+                                                        :disabled="!backup.setup.service_account_exists || !backup.setup.drive_folder_id_set || backup.testingConnection"
+                                                        class="px-3 py-1.5 text-xs bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded border border-cyan-500/30 disabled:opacity-40 transition-colors">
+                                                    <span x-show="!backup.testingConnection">Test Connection</span>
+                                                    <span x-show="backup.testingConnection">Testing...</span>
+                                                </button>
+                                                <template x-if="backup.connectionTestResult">
+                                                    <span class="text-xs"
+                                                          :class="backup.connectionTestResult.success ? 'text-green-400' : 'text-red-400'"
+                                                          x-text="backup.connectionTestResult.success ? backup.connectionTestResult.message : backup.connectionTestResult.error">
+                                                    </span>
+                                                </template>
+                    </div>
+                </div>
+            </div>
+            <!-- End advanced mode content -->
+            </div>
+        </div>
+
+                                <!-- Completion message -->
+                                <template x-if="backup.setup.setup_complete && backup.setup.drive_connection_ok === true">
+                                    <div class="p-2 rounded-lg bg-green-500/10 border border-green-500/30 text-center">
+                                        <p class="text-xs text-green-400">All setup steps complete. You can now configure and enable backups below.</p>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- ====== MAIN CONFIG PANEL (shown when setup is complete) ====== -->
+                        <template x-if="backup.setup.setup_complete">
+                            <div>
+                                <!-- Status Grid -->
+                                <div class="grid grid-cols-2 gap-2 mb-2">
+                                    <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                        <p class="text-sm text-slate-400 mb-1">LAST BACKUP</p>
+                                        <p class="text-lg font-semibold text-white" x-text="backup.config.last_backup_time ? formatDate(backup.config.last_backup_time) : 'Never'"></p>
+                                        <p class="text-sm text-slate-500" x-show="backup.status.last_backup_size_mb > 0"
+                                           x-text="backup.status.last_backup_size_mb.toFixed(1) + ' MB · ' + formatBackupDuration(backup.status.last_backup_duration_seconds)"></p>
+                                    </div>
+                                    <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                        <p class="text-sm text-slate-400 mb-1">NEXT BACKUP</p>
+                                        <p class="text-lg font-semibold text-white" x-text="backup.status.next_backup_at ? formatDate(backup.status.next_backup_at) : '--'"></p>
+                                        <p class="text-sm text-slate-500" x-text="'Every ' + backup.config.backup_interval_days + ' days'"></p>
+                                    </div>
+                                </div>
+
+                                <!-- Progress Bar (during active backup) -->
+                                <template x-if="['stopping_server','compressing','uploading','restarting'].includes(backup.status.state)">
+                                    <div class="mb-2 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <p class="text-sm text-blue-300 font-semibold" x-text="backup.status.current_operation || backup.status.state.replace(/_/g, ' ')"></p>
+                                            <span class="text-xs text-blue-400" x-text="backup.status.progress_percent + '%'"></span>
+                                        </div>
+                                        <div class="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                            <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
+                                                 :style="'width:' + backup.status.progress_percent + '%'"></div>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Countdown Alert -->
+                                <template x-if="backup.status.state === 'countdown'">
+                                    <div class="mb-2 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full bg-orange-500/20 flex items-center justify-center animate-pulse">
+                                                <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                            </div>
+                                            <p class="text-sm text-orange-300 font-semibold">Backup in <span x-text="Math.ceil(backup.status.countdown_remaining_seconds / 60) + 'min'"></span></p>
+                                        </div>
+                                        <button @click="cancelBackupCountdown()" class="px-3 py-1.5 text-sm bg-slate-700/50 hover:bg-slate-700 text-white rounded">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </template>
+
+                                <!-- Error Message -->
+                                <template x-if="backup.status.state === 'error' && backup.status.error_message">
+                                    <div class="mb-2 p-2 rounded-lg bg-red-500/10 border border-red-500/30">
+                                        <p class="text-xs text-red-400" x-text="backup.status.error_message"></p>
+                                    </div>
+                                </template>
+
+                                <!-- Config Controls -->
+                                <div class="space-y-2">
+                                    <div class="flex items-center justify-between p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                        <p class="text-sm font-medium text-white">Enable Backup</p>
+                                        <button @click="toggleBackupScheduler()" class="relative w-11 h-6 rounded-full transition-colors"
+                                                :class="backup.config.enabled ? 'bg-cyan-500' : 'bg-slate-600'">
+                                            <span class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+                                                  :class="backup.config.enabled ? 'translate-x-5' : ''"></span>
+                                        </button>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                            <label class="text-sm font-medium text-white block mb-1">Interval</label>
+                                            <div class="flex items-center gap-1">
+                                                <input type="number" min="1" max="30"
+                                                       :value="backup.config.backup_interval_days"
+                                                       @change="updateBackupConfig({backup_interval_days: parseInt($event.target.value)})"
+                                                       class="w-16 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white">
+                                                <span class="text-xs text-slate-400">days</span>
+                                            </div>
+                                        </div>
+                                        <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                            <label class="text-sm font-medium text-white block mb-1">Backup Time</label>
+                                            <div class="flex items-center gap-1">
+                                                <input type="number" min="0" max="23"
+                                                       :value="backup.config.backup_hour"
+                                                       @change="updateBackupConfig({backup_hour: parseInt($event.target.value)})"
+                                                       class="w-12 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white">
+                                                <span class="text-xs text-slate-400">:</span>
+                                                <input type="number" min="0" max="59" step="5"
+                                                       :value="backup.config.backup_minute"
+                                                       @change="updateBackupConfig({backup_minute: parseInt($event.target.value)})"
+                                                       class="w-12 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="p-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
+                                        <label class="text-sm font-medium text-white block mb-1">Drive Folder ID</label>
+                                        <input type="text" placeholder="Paste Google Drive folder ID"
+                                               :value="backup.config.drive_folder_id"
+                                               @change="updateBackupConfig({drive_folder_id: $event.target.value.trim()})"
+                                               class="w-full px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white placeholder-slate-500 font-mono">
+                                    </div>
+
+                                    <div class="flex gap-2">
+                                        <button @click="triggerManualBackup()"
+                                                :disabled="!backup.config.drive_folder_id || ['countdown','stopping_server','compressing','uploading','restarting'].includes(backup.status.state)"
+                                                class="flex-1 px-3 py-2 text-sm bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg border border-cyan-500/30 disabled:opacity-50 flex items-center justify-center gap-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                            </svg>
+                                            Backup Now
+                                        </button>
+                                        <button @click="refreshBackupStatus()" class="px-3 py-2 text-sm bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                        </button>
+                                    </div>
+
+                                    <!-- Drive Link -->
+                                    <template x-if="backup.status.last_backup_drive_url">
+                                        <a :href="backup.status.last_backup_drive_url" target="_blank"
+                                           class="block text-center text-xs text-cyan-400 hover:text-cyan-300 py-1">
+                                            View Last Backup in Drive &rarr;
+                                        </a>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Setup incomplete hint (when guide is hidden) -->
+                        <template x-if="!backup.setup.setup_complete && !backup.showSetupGuide">
+                            <div class="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-center">
+                                <p class="text-sm text-amber-400/80">Setup required before backups can run.</p>
+                                <button @click="backup.showSetupGuide = true" class="text-xs text-cyan-400 hover:text-cyan-300 mt-1">
+                                    Show Setup Guide
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
                     <!-- Combined Logs (Tabbed) -->
-                    <div class="glass-panel rounded-lg p-3 border border-slate-700/30" x-data="{ logTab: 'scheduler' }">
+                    <div id="operation-history-panel" class="glass-panel rounded-lg p-3 border border-slate-700/30" x-data="{ logTab: 'scheduler' }">
                         <div class="flex items-center gap-3 mb-2">
                             <button @click="logTab = 'scheduler'"
                                     :class="logTab === 'scheduler' ? 'text-white border-green-500/50' : 'text-slate-400 border-transparent'"
                                     class="font-semibold pb-1.5 border-b-2 transition-colors">
                                 Scheduler Logs
+                            </button>
+                            <button @click="logTab = 'backup'"
+                                    :class="logTab === 'backup' ? 'text-white border-cyan-500/50' : 'text-slate-400 border-transparent'"
+                                    class="font-semibold pb-1.5 border-b-2 transition-colors">
+                                Backup Logs
                             </button>
                             <button @click="logTab = 'updates'"
                                     :class="logTab === 'updates' ? 'text-white border-green-500/50' : 'text-slate-400 border-transparent'"
@@ -437,6 +725,20 @@
                                 <p class="text-slate-600 text-center py-6">No scheduler logs</p>
                             </template>
                             <template x-for="(log, index) in scheduler.logs.slice(0, 10)" :key="index">
+                                <div class="flex items-center gap-2 p-2 rounded bg-slate-800/30">
+                                    <span class="w-2 h-2 rounded-full flex-shrink-0"
+                                          :class="log.status === 'success' ? 'bg-green-400' : log.status === 'failed' ? 'bg-red-400' : 'bg-blue-400'"></span>
+                                    <span class="text-slate-500 flex-shrink-0 text-sm" x-text="log.timestamp.split('T')[1]?.substring(0, 8) || ''"></span>
+                                    <span class="text-slate-300 truncate text-sm" x-text="log.details"></span>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div x-show="logTab === 'backup'" class="space-y-1.5 max-h-64 overflow-y-auto">
+                            <template x-if="backup.logs.length === 0">
+                                <p class="text-slate-600 text-center py-6">No backup logs</p>
+                            </template>
+                            <template x-for="(log, index) in backup.logs.slice(0, 10)" :key="index">
                                 <div class="flex items-center gap-2 p-2 rounded bg-slate-800/30">
                                     <span class="w-2 h-2 rounded-full flex-shrink-0"
                                           :class="log.status === 'success' ? 'bg-green-400' : log.status === 'failed' ? 'bg-red-400' : 'bg-blue-400'"></span>
@@ -758,6 +1060,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                             </svg>
                             Whitelisted Players
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-500/20 text-green-400 ring-1 ring-green-500/30" x-text="`${whitelist.length} players`"></span>
                         </h3>
                         <div class="flex items-center gap-2">
                             <!-- Sort Buttons -->
@@ -1448,73 +1751,151 @@
             </div>
         </div>
 
-        <!-- ==================== SETTINGS TAB ==================== -->
+        <!-- ==================== SETTINGS TAB (RBAC) ==================== -->
         <div x-show="activeTab === 'settings'" x-transition>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <!-- Staff Feature Visibility -->
-                <div class="lg:col-span-2 glass-panel rounded-lg p-4 border border-cyan-500/30">
+            <div class="space-y-3">
+                <!-- RBAC Role Assignment -->
+                <div class="glass-panel rounded-lg p-4 border border-cyan-500/30">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
                             <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                             </svg>
-                            Staff Feature Visibility
+                            Staff RBAC Management
                         </h3>
-                        <button @click="loadStaffSettings()" class="px-3 py-1.5 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                        <button @click="loadRBACUsers()" class="px-3 py-1.5 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
                             Refresh
                         </button>
                     </div>
 
-                    <p class="text-sm text-slate-400 mb-4">Control which features each staff member can see. Hidden features will not appear in their panel.</p>
+                    <p class="text-sm text-slate-400 mb-4">Assign roles and manage per-user permission overrides. Staff with no role get zero access.</p>
 
+                    <!-- Role Legend -->
+                    <div class="mb-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
+                        <h4 class="text-sm font-medium text-slate-300 mb-2">Role Presets</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            <template x-for="(data, role) in rbacRoles" :key="role">
+                                <div class="flex items-start gap-2 p-2 rounded bg-slate-700/30">
+                                    <span class="px-2 py-0.5 rounded text-white font-mono shrink-0"
+                                        :class="{
+                                            'bg-slate-600': role === 'viewer',
+                                            'bg-blue-600': role === 'moderator',
+                                            'bg-purple-600': role === 'senior_moderator',
+                                            'bg-emerald-600': role === 'community_manager'
+                                        }" x-text="role"></span>
+                                    <span class="text-slate-400" x-text="data.description"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Staff Table -->
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="text-left text-slate-500 border-b border-slate-700/50">
                                     <th class="py-2 px-2">Staff Email</th>
-                                    <template x-for="(desc, feature) in availableFeatures" :key="feature">
-                                        <th class="py-2 px-2 text-center text-xs" x-text="desc.split(' ')[0]"></th>
-                                    </template>
+                                    <th class="py-2 px-2">Role</th>
+                                    <th class="py-2 px-2 text-center">Permissions</th>
+                                    <th class="py-2 px-2 text-center">Overrides</th>
+                                    <th class="py-2 px-2">Updated</th>
+                                    <th class="py-2 px-2 text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <template x-for="staff in staffSettings" :key="staff.email">
+                                <template x-for="user in rbacUsers" :key="user.email">
                                     <tr class="border-b border-slate-700/30 hover:bg-slate-800/30">
-                                        <td class="py-3 px-2 font-medium text-white" x-text="staff.email"></td>
-                                        <template x-for="(desc, feature) in availableFeatures" :key="feature">
-                                            <td class="py-3 px-2 text-center">
-                                                <button @click="toggleStaffFeature(staff.email, feature, staff.hidden_features.includes(feature))"
-                                                    class="w-10 h-6 rounded-full transition-colors relative"
-                                                    :class="staff.hidden_features.includes(feature) ? 'bg-red-500/50' : 'bg-green-500'">
-                                                    <span class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
-                                                        :class="staff.hidden_features.includes(feature) ? '' : 'translate-x-4'"></span>
-                                                </button>
-                                            </td>
-                                        </template>
+                                        <td class="py-3 px-2 font-medium text-white text-xs" x-text="user.email"></td>
+                                        <td class="py-3 px-2">
+                                            <select @change="setUserRole(user.email, $event.target.value)"
+                                                class="bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-2 py-1.5 focus:border-cyan-500 focus:outline-none">
+                                                <option value="" :selected="!user.role">No Role</option>
+                                                <template x-for="(data, role) in rbacRoles" :key="role">
+                                                    <option :value="role" :selected="user.role === role" x-text="role"></option>
+                                                </template>
+                                            </select>
+                                        </td>
+                                        <td class="py-3 px-2 text-center">
+                                            <span class="text-xs px-2 py-1 rounded-full"
+                                                :class="user.effective_permissions.length > 0 ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'"
+                                                x-text="user.effective_permissions.length + ' perms'"></span>
+                                        </td>
+                                        <td class="py-3 px-2 text-center">
+                                            <div class="flex items-center justify-center gap-1">
+                                                <span x-show="user.grants.length > 0" class="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300"
+                                                    x-text="'+' + user.grants.length"></span>
+                                                <span x-show="user.revokes.length > 0" class="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-300"
+                                                    x-text="'-' + user.revokes.length"></span>
+                                                <span x-show="user.grants.length === 0 && user.revokes.length === 0" class="text-xs text-slate-600">none</span>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-2 text-xs text-slate-500" x-text="user.updated_at ? new Date(user.updated_at).toLocaleDateString() : '--'"></td>
+                                        <td class="py-3 px-2 text-center">
+                                            <button @click="rbacEditUser = user; rbacPermModal = true; loadRBACPermissions()"
+                                                class="px-2 py-1 text-xs bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded border border-cyan-500/30">
+                                                Edit Perms
+                                            </button>
+                                            <button @click="resetUserRBAC(user.email)"
+                                                class="px-2 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded border border-red-500/30 ml-1">
+                                                Reset
+                                            </button>
+                                        </td>
                                     </tr>
                                 </template>
-                                <template x-if="staffSettings.length === 0">
+                                <template x-if="rbacUsers.length === 0">
                                     <tr>
-                                        <td :colspan="Object.keys(availableFeatures).length + 1" class="py-6 text-center text-slate-500">No staff members configured</td>
+                                        <td colspan="6" class="py-6 text-center text-slate-500">No staff members found</td>
                                     </tr>
                                 </template>
                             </tbody>
                         </table>
                     </div>
 
-                    <div class="mt-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
-                        <h4 class="text-sm font-medium text-slate-300 mb-2">Feature Legend</h4>
-                        <div class="grid grid-cols-2 gap-2 text-xs">
-                            <template x-for="(desc, feature) in availableFeatures" :key="feature">
-                                <div class="flex items-center gap-2">
-                                    <span class="px-2 py-1 rounded bg-slate-700/50 text-slate-400" x-text="feature"></span>
-                                    <span class="text-slate-500" x-text="desc"></span>
-                                </div>
-                            </template>
-                        </div>
+                    <!-- Color Legend -->
+                    <div class="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> From role</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Manually granted</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> Manually revoked</span>
                     </div>
                 </div>
+
+                <!-- Legacy Staff Settings (collapsed) -->
+                <details class="glass-panel rounded-lg border border-slate-700/30">
+                    <summary class="p-3 text-sm text-slate-500 cursor-pointer hover:text-slate-300">
+                        Legacy Feature Toggles (deprecated)
+                    </summary>
+                    <div class="p-4 pt-0">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="text-left text-slate-500 border-b border-slate-700/50">
+                                        <th class="py-2 px-2">Staff Email</th>
+                                        <template x-for="(desc, feature) in availableFeatures" :key="feature">
+                                            <th class="py-2 px-2 text-center text-xs" x-text="desc.split(' ')[0]"></th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="staff in staffSettings" :key="staff.email">
+                                        <tr class="border-b border-slate-700/30 hover:bg-slate-800/30">
+                                            <td class="py-3 px-2 font-medium text-white" x-text="staff.email"></td>
+                                            <template x-for="(desc, feature) in availableFeatures" :key="feature">
+                                                <td class="py-3 px-2 text-center">
+                                                    <button @click="toggleStaffFeature(staff.email, feature, staff.hidden_features.includes(feature))"
+                                                        class="w-10 h-6 rounded-full transition-colors relative"
+                                                        :class="staff.hidden_features.includes(feature) ? 'bg-red-500/50' : 'bg-green-500'">
+                                                        <span class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform"
+                                                            :class="staff.hidden_features.includes(feature) ? '' : 'translate-x-4'"></span>
+                                                    </button>
+                                                </td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
             </div>
         </div>
     </main>
@@ -1575,6 +1956,80 @@
         </div>
     </div>
 
+    <!-- RBAC Permission Edit Modal -->
+    <div x-show="rbacPermModal" x-transition @click.self="rbacPermModal = false"
+        class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+        <div class="bg-[#0a0a0a] rounded-xl border border-cyan-500/30 max-w-3xl w-full max-h-[85vh] overflow-hidden">
+            <div class="flex items-center justify-between p-4 border-b border-slate-700/30">
+                <h3 class="font-orbitron text-white">
+                    Edit Permissions: <span class="text-cyan-300" x-text="rbacEditUser?.email"></span>
+                </h3>
+                <button @click="rbacPermModal = false" class="text-slate-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto max-h-[70vh]">
+                <template x-if="rbacEditUser">
+                    <div class="space-y-4">
+                        <!-- Current Role -->
+                        <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
+                            <span class="text-sm text-slate-400">Current Role:</span>
+                            <span class="text-sm font-mono text-white" x-text="rbacEditUser.role || 'None'"></span>
+                        </div>
+
+                        <!-- Permission Matrix by Module -->
+                        <template x-for="module in rbacModules" :key="module">
+                            <div class="p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                                <h4 class="text-sm font-semibold text-white capitalize mb-2" x-text="module"></h4>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <template x-for="perm in rbacPermsByModule(module)" :key="perm">
+                                        <div class="flex items-center justify-between p-2 rounded bg-slate-900/50">
+                                            <div class="flex items-center gap-2 min-w-0">
+                                                <span class="w-2 h-2 rounded-full shrink-0"
+                                                    :class="{
+                                                        'bg-green-500': rbacPermSource(perm) === 'role',
+                                                        'bg-blue-500': rbacPermSource(perm) === 'granted',
+                                                        'bg-red-500': rbacPermSource(perm) === 'revoked',
+                                                        'bg-slate-600': rbacPermSource(perm) === 'none'
+                                                    }"></span>
+                                                <span class="text-xs font-mono text-slate-300 truncate" x-text="perm"></span>
+                                            </div>
+                                            <div class="flex items-center gap-1 shrink-0 ml-2">
+                                                <button @click="grantPermission(rbacEditUser.email, perm)"
+                                                    class="px-1.5 py-0.5 text-xs rounded hover:bg-blue-500/30 transition-colors"
+                                                    :class="rbacPermSource(perm) === 'granted' ? 'bg-blue-500/30 text-blue-300' : 'text-slate-500 hover:text-blue-300'"
+                                                    title="Grant">+</button>
+                                                <button @click="revokePermission(rbacEditUser.email, perm)"
+                                                    class="px-1.5 py-0.5 text-xs rounded hover:bg-red-500/30 transition-colors"
+                                                    :class="rbacPermSource(perm) === 'revoked' ? 'bg-red-500/30 text-red-300' : 'text-slate-500 hover:text-red-300'"
+                                                    title="Revoke">-</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Effective Permissions Summary -->
+                        <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
+                            <h4 class="text-sm font-medium text-slate-300 mb-2">
+                                Effective Permissions (<span x-text="rbacEditUser.effective_permissions.length"></span>)
+                            </h4>
+                            <div class="flex flex-wrap gap-1">
+                                <template x-for="perm in rbacEditUser.effective_permissions" :key="perm">
+                                    <span class="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-300 font-mono" x-text="perm"></span>
+                                </template>
+                                <span x-show="rbacEditUser.effective_permissions.length === 0" class="text-xs text-red-400">No permissions (deny all)</span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div x-show="toast.show" x-transition class="fixed bottom-4 right-4 p-3 rounded-lg border z-50"
         :class="toast.type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-300' :
@@ -1603,7 +2058,6 @@
             pendingUpdate: null,
             toast: { show: false, message: '', type: 'info' },
             loading: false,
-
             activeTab: 'overview',
 
             serverRunning: {{ 'true' if server_status.running else 'false' }},
@@ -1670,9 +2124,16 @@
                 duration: 30
             },
 
-            // Staff Settings
+            // Staff Settings (legacy)
             staffSettings: [],
             availableFeatures: {},
+
+            // RBAC
+            rbacUsers: [],
+            rbacRoles: {},
+            rbacAllPermissions: {},
+            rbacPermModal: false,
+            rbacEditUser: null,
 
             // Command Output Modal
             commandOutputModal: false,
@@ -1713,10 +2174,46 @@
                 purge_running: false
             },
 
+            backup: {
+                config: {
+                    enabled: false,
+                    backup_interval_days: 7,
+                    backup_hour: 5,
+                    backup_minute: 0,
+                    countdown_minutes: 5,
+                    drive_folder_id: '',
+                    keep_drive_backups: 10,
+                    last_backup_time: null
+                },
+                status: {
+                    state: 'disabled',
+                    current_operation: '',
+                    progress_percent: 0,
+                    countdown_remaining_seconds: 0,
+                    next_backup_at: null,
+                    last_backup_size_mb: 0,
+                    last_backup_duration_seconds: 0,
+                    last_backup_drive_url: null,
+                    error_message: null
+                },
+                setup: {
+                    service_account_exists: false,
+                    service_account_email: null,
+                    drive_folder_id_set: false,
+                    drive_connection_ok: null,
+                    setup_complete: false
+                },
+                showSetupGuide: false,
+                testingConnection: false,
+                connectionTestResult: null,
+                logs: []
+            },
+
             init() {
                 this.refreshPlayerList();
                 this.refreshSchedulerStatus();
                 this.refreshCoreprotectStatus();
+                this.refreshBackupStatus();
                 this.refreshUpdateLogs();
                 this.fetchServerLogs();
                 this.fetchWarnings();
@@ -1726,6 +2223,8 @@
                 this.loadSpectatorStats();
                 this.loadValidTags();
                 this.loadStaffSettings();
+                this.loadRBACUsers();
+                this.loadRBACRoles();
                 this.loadWhitelistAutocomplete();
                 if (this.serverRunning) {
                     this.fetchWhitelist();
@@ -1734,6 +2233,7 @@
                 setInterval(() => this.loadPendingSpectators(), 15000);
                 setInterval(() => this.refreshSchedulerStatus(), 5000);
                 setInterval(() => this.refreshCoreprotectStatus(), 30000);
+                setInterval(() => this.refreshBackupStatus(), 5000);
                 setInterval(() => this.refreshUpdateLogs(), 30000);
             },
 
@@ -1861,7 +2361,6 @@
                     this.loading = false;
                 }
             },
-
             // ===== Plugin Updates =====
 
             async checkUpdates() {
@@ -2081,6 +2580,120 @@
                 } finally {
                     this.coreprotect.purge_running = false;
                 }
+            },
+
+            // ===== Backup Scheduler =====
+
+            async refreshBackupStatus() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/backup-scheduler/status');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.backup.config = data.config;
+                        this.backup.status = data.backup_status;
+                        if (data.setup_status) {
+                            this.backup.setup = data.setup_status;
+                            // Auto-show setup guide if not complete
+                            if (!data.setup_status.setup_complete && !this.backup.showSetupGuide) {
+                                this.backup.showSetupGuide = true;
+                            }
+                        }
+                    }
+                    const logsResponse = await fetch('/minecraft/admin/api/minecraft/backup-scheduler/logs?limit=20');
+                    const logsData = await logsResponse.json();
+                    if (logsData.status === 'ok') {
+                        this.backup.logs = logsData.logs;
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch backup status:', e);
+                }
+            },
+
+            async testDriveConnection() {
+                this.backup.testingConnection = true;
+                this.backup.connectionTestResult = null;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/backup-scheduler/test-connection', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    this.backup.connectionTestResult = data;
+                    if (data.success) {
+                        this.showToast('Drive connection successful!', 'success');
+                    } else {
+                        this.showToast('Connection failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                    await this.refreshBackupStatus();
+                } catch (e) {
+                    this.backup.connectionTestResult = { success: false, error: 'Network error' };
+                    this.showToast('Connection test failed', 'error');
+                } finally {
+                    this.backup.testingConnection = false;
+                }
+            },
+
+            async toggleBackupScheduler() {
+                await this.updateBackupConfig({ enabled: !this.backup.config.enabled });
+            },
+
+            async updateBackupConfig(changes) {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/backup-scheduler/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(changes)
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.backup.config = data.config;
+                        this.showToast('Backup config updated', 'success');
+                        await this.refreshBackupStatus();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to update backup config', 'error');
+                }
+            },
+
+            async triggerManualBackup() {
+                if (!confirm('Start a manual backup? The server will be stopped during backup.')) return;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/backup-scheduler/trigger', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        await this.refreshBackupStatus();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to trigger backup', 'error');
+                }
+            },
+
+            async cancelBackupCountdown() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/backup-scheduler/cancel', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        await this.refreshBackupStatus();
+                    } else {
+                        this.showToast('Failed: ' + (data.error || 'Unknown'), 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to cancel backup', 'error');
+                }
+            },
+
+            formatBackupDuration(seconds) {
+                if (!seconds) return '--';
+                if (seconds < 60) return seconds + 's';
+                if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
+                return Math.floor(seconds / 3600) + 'h ' + Math.floor((seconds % 3600) / 60) + 'm';
             },
 
             // ===== Moderation =====
@@ -2614,6 +3227,143 @@
                 }
             },
 
+            // ==================== RBAC MANAGEMENT ====================
+            async loadRBACUsers() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/rbac/users');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.rbacUsers = data.users || [];
+                    }
+                } catch (e) {
+                    console.error('Failed to load RBAC users:', e);
+                }
+            },
+
+            async loadRBACRoles() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/rbac/roles');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.rbacRoles = data.roles || {};
+                    }
+                } catch (e) {
+                    console.error('Failed to load RBAC roles:', e);
+                }
+            },
+
+            async loadRBACPermissions() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/rbac/permissions');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.rbacAllPermissions = data.permissions || {};
+                    }
+                } catch (e) {
+                    console.error('Failed to load RBAC permissions:', e);
+                }
+            },
+
+            get rbacModules() {
+                const modules = new Set();
+                for (const [perm, meta] of Object.entries(this.rbacAllPermissions)) {
+                    modules.add(meta.module);
+                }
+                return [...modules].sort();
+            },
+
+            rbacPermsByModule(module) {
+                return Object.entries(this.rbacAllPermissions)
+                    .filter(([perm, meta]) => meta.module === module)
+                    .map(([perm]) => perm)
+                    .sort();
+            },
+
+            rbacPermSource(perm) {
+                if (!this.rbacEditUser) return 'none';
+                if (this.rbacEditUser.revokes.includes(perm)) return 'revoked';
+                if (this.rbacEditUser.grants.includes(perm)) return 'granted';
+                // Check if from role
+                const role = this.rbacEditUser.role;
+                if (role && this.rbacRoles[role] && this.rbacRoles[role].permissions.includes(perm)) return 'role';
+                return 'none';
+            },
+
+            async setUserRole(email, role) {
+                try {
+                    const response = await fetch(`/minecraft/admin/api/rbac/users/${encodeURIComponent(email)}/role`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ role: role || null })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        this.loadRBACUsers();
+                    } else {
+                        this.showToast(data.error || 'Failed to set role', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error setting role', 'error');
+                }
+            },
+
+            async grantPermission(email, perm) {
+                try {
+                    const response = await fetch(`/minecraft/admin/api/rbac/users/${encodeURIComponent(email)}/grant`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ permission: perm })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.rbacEditUser = { ...this.rbacEditUser, ...data.user };
+                        this.loadRBACUsers();
+                    } else {
+                        this.showToast(data.error || 'Failed to grant permission', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error granting permission', 'error');
+                }
+            },
+
+            async revokePermission(email, perm) {
+                try {
+                    const response = await fetch(`/minecraft/admin/api/rbac/users/${encodeURIComponent(email)}/revoke`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ permission: perm })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.rbacEditUser = { ...this.rbacEditUser, ...data.user };
+                        this.loadRBACUsers();
+                    } else {
+                        this.showToast(data.error || 'Failed to revoke permission', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error revoking permission', 'error');
+                }
+            },
+
+            async resetUserRBAC(email) {
+                if (!confirm(`Reset all RBAC settings for ${email}? They will lose all permissions.`)) return;
+                try {
+                    const response = await fetch(`/minecraft/admin/api/rbac/users/${encodeURIComponent(email)}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        this.loadRBACUsers();
+                    } else {
+                        this.showToast(data.error || 'Failed to reset', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error resetting RBAC', 'error');
+                }
+            },
+
             // ==================== WHITELIST AUTOCOMPLETE ====================
             async loadWhitelistAutocomplete() {
                 try {
@@ -2730,5 +3480,8 @@
             }
         }
     }
+
+    const adminInstance = minecraftAdmin();
+
 </script>
 {% endblock %}

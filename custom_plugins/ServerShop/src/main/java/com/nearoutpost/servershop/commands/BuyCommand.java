@@ -162,6 +162,8 @@ public class BuyCommand implements CommandExecutor, TabCompleter {
                     .replace("%item%", material.name().toLowerCase().replace("_", " "))
                     .replace("%amount%", String.valueOf(amount))
                     .replace("%price%", String.format("%.0f", totalPrice))));
+            ServerShop.depositToServerAccount(totalPrice,
+                player.getName() + " bought " + material.name().toLowerCase() + " x" + amount);
         } else {
             // Refund items if transaction failed
             player.getInventory().removeItem(itemStack);

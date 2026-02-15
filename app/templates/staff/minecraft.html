@@ -1,191 +1,22 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 
 {% block title %}Staff Panel - Minecraft Server{% endblock %}
 
-{% block head %}
-<style>
-    .glass-card {
-        background: rgba(10, 10, 15, 0.6);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(168, 85, 247, 0.15);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-
-    .glass-card-hover {
-        transition: all 0.3s ease;
-    }
-
-    .glass-card-hover:hover {
-        border-color: rgba(168, 85, 247, 0.3);
-        box-shadow: 0 8px 40px rgba(168, 85, 247, 0.1);
-    }
-
-    .staff-badge {
-        background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
-        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
-    }
-
-    .status-dot {
-        position: relative;
-    }
-
-    .status-dot::after {
-        content: '';
-        position: absolute;
-        inset: -3px;
-        border-radius: 50%;
-        background: inherit;
-        animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        opacity: 0;
-    }
-
-    .status-dot.online::after {
-        opacity: 0.4;
-    }
-
-    @keyframes pulse-ring {
-
-        0%,
-        100% {
-            transform: scale(1);
-            opacity: 0.4;
-        }
-
-        50% {
-            transform: scale(1.5);
-            opacity: 0;
-        }
-    }
-
-    .btn-primary {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-        transition: all 0.2s ease;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-    }
-
-    .btn-warning {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
-        transition: all 0.2s ease;
-    }
-
-    .btn-warning:hover:not(:disabled) {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
-    }
-
-    .btn-danger {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
-        transition: all 0.2s ease;
-    }
-
-    .btn-danger:hover:not(:disabled) {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
-    }
-
-    .btn-secondary {
-        background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
-        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
-        transition: all 0.2s ease;
-    }
-
-    .btn-secondary:hover:not(:disabled) {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(168, 85, 247, 0.4);
-    }
-
-    .player-card {
-        transition: all 0.2s ease;
-    }
-
-    .player-card:hover {
-        transform: translateY(-2px);
-        background: rgba(10, 10, 15, 0.8);
-    }
-
-    .input-field {
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(71, 85, 105, 0.5);
-        transition: all 0.2s ease;
-    }
-
-    .input-field:focus {
-        border-color: rgba(168, 85, 247, 0.5);
-        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
-    }
-
-    .section-title {
-        position: relative;
-        padding-left: 12px;
-    }
-
-    .section-title::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3px;
-        height: 70%;
-        background: linear-gradient(180deg, #a855f7, #c084fc);
-        border-radius: 2px;
-    }
-
-    /* Tab styles */
-    .tab-btn {
-        transition: all 0.2s ease;
-    }
-    .tab-btn.active {
-        background: rgba(168, 85, 247, 0.2);
-        border-color: rgba(168, 85, 247, 0.5);
-        color: #d8b4fe;
-    }
-
-    /* Log viewer styles */
-    .log-viewer {
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
-        font-size: 0.75rem;
-        line-height: 1.5;
-    }
-    .log-entry {
-        padding: 2px 8px;
-        border-bottom: 1px solid rgba(30, 30, 40, 0.3);
-    }
-    .log-entry:hover {
-        background: rgba(30, 30, 40, 0.3);
-    }
-</style>
-{% endblock %}
+{% import "components/nearoutpost/macros.html" as near %}
+{% import "components/nearoutpost/operation_card.html" as op_card %}
 
 {% block content %}
 <div x-data="staffPanel()" x-init="init()"
     class="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-purple-500/30">
 
-    <!-- Background Pattern -->
-    <div class="fixed inset-0 opacity-30 pointer-events-none">
-        <div class="absolute inset-0"
-            style="background-image: radial-gradient(rgba(168, 85, 247, 0.1) 1px, transparent 1px); background-size: 40px 40px;">
-        </div>
-    </div>
+    {% include "components/nearoutpost/background_pattern.html" %}
 
     <!-- Navbar -->
     <header class="sticky top-0 z-30 border-b border-purple-500/20 bg-[#0a0a0a]/80 backdrop-blur-xl">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center gap-4">
-                    <a href="/"
-                        class="group flex items-center justify-center w-10 h-10 rounded-xl bg-[#0a0a0a] hover:bg-slate-800 border border-slate-700/50 transition-all">
-                        <i data-lucide="arrow-left"
-                            class="w-5 h-5 text-slate-400 group-hover:text-white group-hover:-translate-x-0.5 transition-all"></i>
-                    </a>
+                    {{ near.back_button('/') }}
                     <div class="flex items-center gap-3">
                         <div class="staff-badge px-3 py-1.5 rounded-lg">
                             <span class="text-xs font-bold text-white tracking-wider">STAFF</span>
@@ -200,13 +31,12 @@
                 </div>
 
                 <div class="flex items-center gap-4">
-                    <a href="/minecraft/taskboard" title="Task Board"
+                    <a href="#" title="Disabled in OSS build"
                         class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 hover:border-purple-500/50 transition-all">
                         <i data-lucide="clipboard-list" class="w-4 h-4 text-purple-400 group-hover:text-purple-300"></i>
                         <span class="hidden sm:inline text-sm font-medium text-purple-300 group-hover:text-purple-200">Task Board</span>
                     </a>
-                    <a href="/minecraft/plugins" title="Plugin Docs" x-data="{ unreadCount: 0 }" x-init="fetch('/minecraft/plugins/api/notifications/unread').then(r => r.json()).then(d => unreadCount = d.count || 0).catch(() => {})"
-                        x-show="isFeatureVisible('plugin_installation')"
+                    <a href="/minecraft/plugins" title="Plugin Docs" x-show="hasPermission('plugins:view')" x-data="{ unreadCount: 0 }" x-init="fetch('/minecraft/plugins/api/notifications/unread').then(r => r.json()).then(d => unreadCount = d.count || 0).catch(() => {})"
                         class="relative group flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 hover:border-purple-500/50 transition-all">
                         <i data-lucide="file-text" class="w-4 h-4 text-purple-400 group-hover:text-purple-300"></i>
                         <span class="hidden sm:inline text-sm font-medium text-purple-300 group-hover:text-purple-200">Plugin Docs</span>
@@ -284,6 +114,7 @@
                     <!-- Control Buttons -->
                     <div class="flex items-center gap-3 w-full lg:w-auto">
                         <button @click="startServer()" :disabled="serverRunning || loading"
+                            x-show="hasPermission('server:start')"
                             class="flex-1 lg:flex-none btn-primary px-6 py-3 rounded-xl text-white font-semibold active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
                             <div class="flex items-center justify-center gap-2">
                                 <i data-lucide="play" class="w-4 h-4 fill-current"></i>
@@ -292,7 +123,7 @@
                         </button>
 
                         <button @click="restartServer()" :disabled="loading"
-                            x-show="isFeatureVisible('server_restart')"
+                            x-show="hasPermission('server:restart')"
                             class="flex-1 lg:flex-none btn-warning px-6 py-3 rounded-xl text-white font-semibold active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
                             <div class="flex items-center justify-center gap-2">
                                 <i data-lucide="refresh-cw" class="w-4 h-4" :class="loading ? 'animate-spin' : ''"></i>
@@ -314,7 +145,7 @@
                 <div class="flex items-center gap-4">
                     <span class="flex items-center gap-1.5">
                         <i data-lucide="globe" class="w-3.5 h-3.5"></i>
-                        nearoutpost.hjjang.dev
+                        nearoutpost.example.com
                     </span>
                     <span class="flex items-center gap-1.5">
                         <i data-lucide="hash" class="w-3.5 h-3.5"></i>
@@ -326,8 +157,8 @@
         </section>
 
         <!-- Tab Navigation -->
-        <div class="flex flex-wrap gap-2">
-            <button @click="activeTab = 'players'"
+        <div class="flex flex-wrap gap-2" x-show="hasAnyPermission()">
+            <button @click="activeTab = 'players'" x-show="hasModule('players')"
                 class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
                 :class="activeTab === 'players' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
                 <span class="flex items-center gap-2">
@@ -335,7 +166,7 @@
                     Players
                 </span>
             </button>
-            <button @click="activeTab = 'moderation'"
+            <button @click="activeTab = 'moderation'" x-show="hasModule('moderation')"
                 class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
                 :class="activeTab === 'moderation' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
                 <span class="flex items-center gap-2">
@@ -343,7 +174,7 @@
                     Moderation
                 </span>
             </button>
-            <button @click="activeTab = 'logs'"
+            <button @click="activeTab = 'logs'" x-show="hasModule('logs')"
                 class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
                 :class="activeTab === 'logs' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
                 <span class="flex items-center gap-2">
@@ -351,7 +182,7 @@
                     Logs
                 </span>
             </button>
-            <button @click="activeTab = 'whitelist'"
+            <button @click="activeTab = 'whitelist'" x-show="hasModule('whitelist')"
                 class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
                 :class="activeTab === 'whitelist' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
                 <span class="flex items-center gap-2">
@@ -359,7 +190,7 @@
                     Whitelist
                 </span>
             </button>
-            <button @click="activeTab = 'lookup'"
+            <button @click="activeTab = 'lookup'" x-show="hasModule('lookup')"
                 class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
                 :class="activeTab === 'lookup' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
                 <span class="flex items-center gap-2">
@@ -367,7 +198,7 @@
                     CoreProtect
                 </span>
             </button>
-            <button @click="activeTab = 'warnings'"
+            <button @click="activeTab = 'warnings'" x-show="hasModule('warnings')"
                 class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-slate-700/50 hover:border-slate-600 transition-all"
                 :class="activeTab === 'warnings' ? 'active' : 'bg-[#0a0a0a] text-slate-400'">
                 <span class="flex items-center gap-2">
@@ -376,7 +207,7 @@
                 </span>
             </button>
             <!-- Investigation Page Link -->
-            <a href="/minecraft/staff/investigation"
+            <a href="/minecraft/staff/investigation" x-show="hasModule('investigation') || hasModule('spectator')"
                 class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-purple-500/50 bg-purple-500/10 text-purple-300 hover:border-purple-500/70 hover:bg-purple-500/20 transition-all">
                 <span class="flex items-center gap-2">
                     <i data-lucide="eye" class="w-4 h-4"></i>
@@ -439,17 +270,17 @@
                                         <p class="text-xs text-slate-500">Online</p>
                                     </div>
                                     <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                        <button @click="kickPlayer(extractUsername(player))"
+                                        <button x-show="hasPermission('moderation:kick')" @click="kickPlayer(extractUsername(player))"
                                             class="p-2 rounded-lg hover:bg-amber-500/20 text-slate-500 hover:text-amber-400 transition-all"
                                             title="Kick">
                                             <i data-lucide="log-out" class="w-4 h-4"></i>
                                         </button>
-                                        <button @click="openWarnModal(extractUsername(player))"
+                                        <button x-show="hasPermission('warnings:issue')" @click="openWarnModal(extractUsername(player))"
                                             class="p-2 rounded-lg hover:bg-yellow-500/20 text-slate-500 hover:text-yellow-400 transition-all"
                                             title="Warn">
                                             <i data-lucide="alert-triangle" class="w-4 h-4"></i>
                                         </button>
-                                        <button @click="openBanModal(extractUsername(player))"
+                                        <button x-show="hasPermission('moderation:tempban')" @click="openBanModal(extractUsername(player))"
                                             class="p-2 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
                                             title="Temp Ban">
                                             <i data-lucide="gavel" class="w-4 h-4"></i>
@@ -462,7 +293,7 @@
                 </section>
 
                 <!-- Broadcast -->
-                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                <section x-show="hasPermission('moderation:broadcast')" class="glass-card glass-card-hover rounded-2xl p-6">
                     <div class="flex items-center gap-2 mb-6">
                         <div class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center">
                             <i data-lucide="megaphone" class="w-5 h-5 text-purple-400"></i>
@@ -511,7 +342,7 @@
         <div x-show="activeTab === 'moderation'" x-transition>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Temp Ban Form -->
-                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                <section x-show="hasPermission('moderation:tempban')" class="glass-card glass-card-hover rounded-2xl p-6">
                     <div class="flex items-center gap-2 mb-6">
                         <div class="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center">
                             <i data-lucide="gavel" class="w-5 h-5 text-red-400"></i>
@@ -577,7 +408,7 @@
                 </section>
 
                 <!-- Warn Form -->
-                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                <section x-show="hasPermission('warnings:issue')" class="glass-card glass-card-hover rounded-2xl p-6">
                     <div class="flex items-center gap-2 mb-6">
                         <div class="w-10 h-10 rounded-xl bg-yellow-500/15 flex items-center justify-center">
                             <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-400"></i>
@@ -704,9 +535,9 @@
                         <h3 class="section-title text-lg font-bold text-white flex items-center gap-2">
                             <i data-lucide="list-checks" class="w-5 h-5 text-purple-400"></i>
                             Whitelisted Players
-                            <span class="text-xs text-slate-500 font-normal" x-text="`(${whitelist.length})`"></span>
                         </h3>
                         <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/30" x-text="`${whitelist.length} players`"></span>
                             <!-- Sort Buttons -->
                             <div class="flex items-center gap-1 p-1 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
                                 <button @click="whitelistSort = 'az'"
@@ -746,7 +577,7 @@
                             <template x-for="player in sortedWhitelist" :key="player.name || player">
                                 <div class="group flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0a0a0a] border border-slate-700/30">
                                     <span class="text-sm text-white" x-text="player.name || player"></span>
-                                    <button x-show="isFeatureVisible('whitelist_remove')" @click="removeFromWhitelist(player.name || player)"
+                                    <button x-show="hasPermission('whitelist:remove')" @click="removeFromWhitelist(player.name || player)"
                                         class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
                                         title="Remove from whitelist">
                                         <i data-lucide="x" class="w-3 h-3"></i>
@@ -758,7 +589,7 @@
                 </section>
 
                 <!-- Add to Whitelist -->
-                <section class="glass-card glass-card-hover rounded-2xl p-6">
+                <section x-show="hasPermission('whitelist:add')" class="glass-card glass-card-hover rounded-2xl p-6">
                     <div class="flex items-center gap-2 mb-6">
                         <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
                             <i data-lucide="user-plus" class="w-5 h-5 text-emerald-400"></i>
@@ -1113,8 +944,9 @@ function staffPanel() {
         whitelistPlayer: '',
         whitelistSort: 'az', // 'az', 'za', or 'added'
 
-        // Staff Settings
-        hiddenFeatures: [],
+        // RBAC Permissions (server-rendered)
+        permissions: {{ user_permissions | tojson }},
+        visibleModules: {{ visible_modules | tojson }},
 
         // CoreProtect Lookup
         lookupType: 'player',
@@ -1132,11 +964,18 @@ function staffPanel() {
         init() {
             lucide.createIcons();
             this.loadMySettings();
-            setInterval(() => this.refreshStatus(), 5000);
+            if (this.hasPermission('status:view')) {
+                this.refreshStatus();
+                setInterval(() => this.refreshStatus(), 5000);
+            }
             // Load initial data for visible tabs
-            this.fetchLogs();
-            this.fetchWarnings();
-            if (this.serverRunning) {
+            if (this.hasPermission('logs:view')) {
+                this.fetchLogs();
+            }
+            if (this.hasPermission('warnings:view')) {
+                this.fetchWarnings();
+            }
+            if (this.serverRunning && this.hasPermission('whitelist:view')) {
                 this.fetchWhitelist();
             }
         },
@@ -1152,8 +991,10 @@ function staffPanel() {
         },
 
         async refreshStatus() {
+            if (!this.hasPermission('status:view')) return;
             try {
                 const response = await fetch('/minecraft/staff/api/minecraft/status');
+                if (response.status === 403) return;
                 const data = await response.json();
                 if (data.status === 'ok') {
                     this.serverRunning = data.server.running;
@@ -1161,8 +1002,12 @@ function staffPanel() {
                     this.maxPlayers = data.server.max_players || 20;
                 }
 
-                if (this.serverRunning) {
+                if (this.serverRunning && this.hasPermission('players:view')) {
                     const playersRes = await fetch('/minecraft/staff/api/minecraft/players');
+                    if (playersRes.status === 403) {
+                        this.players = [];
+                        return;
+                    }
                     const playersData = await playersRes.json();
                     if (playersData.status === 'ok') {
                         this.players = playersData.players || [];
@@ -1356,6 +1201,10 @@ function staffPanel() {
         },
 
         async fetchLogs() {
+            if (!this.hasPermission('logs:view')) {
+                this.serverLogs = [];
+                return;
+            }
             this.loadingLogs = true;
             try {
                 let url = '/minecraft/staff/api/minecraft/logs?lines=200';
@@ -1363,6 +1212,7 @@ function staffPanel() {
                     url += `&search=${encodeURIComponent(this.logSearch.trim())}`;
                 }
                 const response = await fetch(url);
+                if (response.status === 403) return;
                 const data = await response.json();
                 if (data.status === 'ok') {
                     this.serverLogs = data.logs || [];
@@ -1376,10 +1226,11 @@ function staffPanel() {
         },
 
         async fetchWhitelist() {
-            if (!this.serverRunning) return;
+            if (!this.serverRunning || !this.hasPermission('whitelist:view')) return;
             this.loadingWhitelist = true;
             try {
                 const response = await fetch('/minecraft/staff/api/minecraft/whitelist');
+                if (response.status === 403) return;
                 const data = await response.json();
                 if (data.status === 'ok') {
                     this.whitelist = data.players || [];
@@ -1457,9 +1308,14 @@ function staffPanel() {
         },
 
         async fetchWarnings() {
+            if (!this.hasPermission('warnings:view')) {
+                this.warningsList = [];
+                return;
+            }
             this.loadingWarnings = true;
             try {
                 const response = await fetch('/minecraft/staff/api/minecraft/warnings?limit=50');
+                if (response.status === 403) return;
                 const data = await response.json();
                 if (data.status === 'ok') {
                     this.warningsList = data.warnings || [];
@@ -1473,8 +1329,13 @@ function staffPanel() {
 
         async lookupPlayerWarnings() {
             if (!this.warningLookupPlayer.trim()) return;
+            if (!this.hasPermission('warnings:view')) {
+                this.showToast('No permission: warnings:view', 'error');
+                return;
+            }
             try {
                 const response = await fetch(`/minecraft/staff/api/minecraft/warnings/${encodeURIComponent(this.warningLookupPlayer)}`);
+                if (response.status === 403) return;
                 const data = await response.json();
                 if (data.status === 'ok') {
                     this.playerWarnings = data;
@@ -1491,7 +1352,8 @@ function staffPanel() {
                 const response = await fetch('/minecraft/staff/api/my-settings');
                 const data = await response.json();
                 if (data.status === 'ok') {
-                    this.hiddenFeatures = data.hidden_features || [];
+                    this.permissions = data.permissions || [];
+                    this.visibleModules = data.visible_modules || [];
                 }
             } catch (e) {
                 console.error('Failed to load settings:', e);
@@ -1521,8 +1383,16 @@ function staffPanel() {
             }
         },
 
-        isFeatureVisible(feature) {
-            return !this.hiddenFeatures.includes(feature);
+        hasPermission(perm) {
+            return this.permissions.includes(perm);
+        },
+
+        hasModule(module) {
+            return this.visibleModules.includes(module);
+        },
+
+        hasAnyPermission() {
+            return this.permissions.length > 0;
         },
 
         showToast(message, type = 'info') {

@@ -43,6 +43,27 @@ public class ConfigManager {
         return config.getDouble("attribution.admin-command-patterns.round-number-multiple", 100.0);
     }
 
+    // Server account settings
+    public boolean isServerAccountEnabled() {
+        return config.getBoolean("server-account.enabled", true);
+    }
+
+    public String getServerAccountName() {
+        return config.getString("server-account.account-name", "nearoutpost");
+    }
+
+    public boolean isRouteUcRevenue() {
+        return config.getBoolean("server-account.route-uc-revenue", true);
+    }
+
+    public boolean isRoutePaTax() {
+        return config.getBoolean("server-account.route-pa-tax", true);
+    }
+
+    public double getPaTaxRate() {
+        return config.getDouble("server-account.pa-tax-rate", 0.02);
+    }
+
     // Database settings
     public int getBatchSize() {
         return config.getInt("database.batch-size", 100);

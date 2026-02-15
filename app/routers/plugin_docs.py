@@ -11,85 +11,21 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import TEMPLATES_DIR
-from app.core.auth import require_staff, require_admin, is_admin, get_current_user
+from app.core.auth import require_staff, require_admin, is_admin, get_current_user, require_permission
 from app.services import plugin_docs, plugin_notifications
 from app.services.minecraft_updater import load_versions
-from app.services import staff_settings as staff_settings_service
+from app.services.modrinth_api import batch_get_icons, get_plugin_icon
 
 router = APIRouter(prefix="/minecraft/plugins", tags=["PluginDocs"])
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-
-async def require_plugin_access(request: Request):
-    """
-    Require staff authentication AND plugin_installation feature access.
-    Admins always have access; staff must have plugin_installation visible.
-    """
-    user_info = await require_staff(request)
-    
-    # Admins always have access
-    if is_admin(user_info):
-        return user_info
-    
-    # Check if staff has plugin_installation feature visible
-    staff_email = user_info.get("email", "")
-    if not staff_settings_service.is_feature_visible(staff_email, "plugin_installation"):
-        # Check if this is an API request or a page request
-        path = request.url.path
-        if "/api/" in path:
-            # API requests get JSON error
-            raise HTTPException(
-                status_code=403,
-                detail="Plugin documentation access is disabled for your account. Contact an admin."
-            )
-        else:
-            # Page requests get a friendly error page
-            from fastapi.responses import HTMLResponse
-            response = templates.TemplateResponse("plugins/access_denied.html", {
-                "request": request,
-                "user_info": user_info
-            })
-            response.status_code = 403
-            raise HTTPException(status_code=403, detail="Access denied")
-    
-    return user_info
-
-
-async def require_plugin_access_page(request: Request):
-    """
-    Same as require_plugin_access but returns HTML error page for denied access.
-    Use this for page routes only.
-    """
-    user_info = await require_staff(request)
-    
-    # Admins always have access
-    if is_admin(user_info):
-        return user_info
-    
-    # Check if staff has plugin_installation feature visible
-    staff_email = user_info.get("email", "")
-    if not staff_settings_service.is_feature_visible(staff_email, "plugin_installation"):
-        # Return None to signal access denied - caller will handle rendering
-        return None
-    
-    return user_info
 
 
 # ==================== Page Routes ====================
 
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
-async def plugins_overview(request: Request, user_info = Depends(require_plugin_access_page)):
+async def plugins_overview(request: Request, user_info = Depends(require_permission("plugins:view"))):
     """Plugin documentation overview page"""
-    # Check for access denied
-    if user_info is None:
-        # Get basic user info for the access denied page
-        basic_user_info = await require_staff(request)
-        return templates.TemplateResponse("plugins/access_denied.html", {
-            "request": request,
-            "user_info": basic_user_info
-        }, status_code=403)
-    
     # Get plugin version info
     versions_data = load_versions()
     tracked_plugins = versions_data.get("plugins", {})
@@ -102,9 +38,10 @@ async def plugins_overview(request: Request, user_info = Depends(require_plugin_
 
     # Merge version info with docs
     plugins_list = []
+    modrinth_ids = []
     for plugin_id, version_info in tracked_plugins.items():
         doc = docs.get(plugin_id, {})
-        plugins_list.append({
+        plugin_data = {
             "id": plugin_id,
             "name": plugin_id.title(),
             "version": version_info.get("full_version") or version_info.get("current_version", "Unknown"),
@@ -113,7 +50,26 @@ async def plugins_overview(request: Request, user_info = Depends(require_plugin_
             "has_docs": bool(doc.get("summary") or doc.get("description")),
             "commands_count": len(doc.get("commands", [])),
             "comments_count": len(doc.get("comments", []))
-        })
+        }
+        plugins_list.append(plugin_data)
+
+        # Collect Modrinth project IDs for icon fetching
+        if version_info.get("source") == "modrinth" and version_info.get("project_id"):
+            modrinth_ids.append(version_info["project_id"])
+
+    # Fetch Modrinth icons
+    icons_map = {}
+    if modrinth_ids:
+        icons_map = await batch_get_icons(modrinth_ids)
+
+    # Add icon URLs to plugins
+    for plugin in plugins_list:
+        version_info = tracked_plugins.get(plugin["id"], {})
+        if version_info.get("source") == "modrinth":
+            project_id = version_info.get("project_id")
+            plugin["icon_url"] = icons_map.get(project_id)
+        else:
+            plugin["icon_url"] = None
 
     # Sort by name
     plugins_list.sort(key=lambda x: x["name"].lower())
@@ -128,16 +84,8 @@ async def plugins_overview(request: Request, user_info = Depends(require_plugin_
 
 
 @router.get("/{plugin_id}", response_class=HTMLResponse)
-async def plugin_detail(request: Request, plugin_id: str, user_info = Depends(require_plugin_access_page)):
+async def plugin_detail(request: Request, plugin_id: str, user_info = Depends(require_permission("plugins:view"))):
     """Plugin detail page with tabs"""
-    # Check for access denied
-    if user_info is None:
-        basic_user_info = await require_staff(request)
-        return templates.TemplateResponse("plugins/access_denied.html", {
-            "request": request,
-            "user_info": basic_user_info
-        }, status_code=403)
-    
     # Get version info
     versions_data = load_versions()
     tracked_plugins = versions_data.get("plugins", {})
@@ -159,6 +107,13 @@ async def plugin_detail(request: Request, plugin_id: str, user_info = Depends(re
     # Get config files list
     config_files = plugin_docs.list_config_files(plugin_id)
 
+    # Get Modrinth icon if available
+    icon_url = None
+    if version_info.get("source") == "modrinth":
+        project_id = version_info.get("project_id")
+        if project_id:
+            icon_url = await get_plugin_icon(project_id)
+
     # Mark notifications for this plugin as read
     plugin_notifications.mark_plugin_notifications_read(user_info.get("email", ""), plugin_id)
 
@@ -175,21 +130,22 @@ async def plugin_detail(request: Request, plugin_id: str, user_info = Depends(re
         "source": version_info.get("source", "unknown"),
         "doc": doc,
         "config_files": config_files,
-        "unread_count": unread_count
+        "unread_count": unread_count,
+        "icon_url": icon_url
     })
 
 
 # ==================== API Endpoints: Documentation ====================
 
 @router.get("/api/docs")
-async def get_all_docs(user_info: dict = Depends(require_plugin_access)):
+async def get_all_docs(user_info: dict = Depends(require_permission("plugins:view"))):
     """Get all plugin documentation"""
     docs = plugin_docs.get_all_plugins()
     return JSONResponse({"status": "ok", "plugins": docs})
 
 
 @router.get("/api/docs/{plugin_id}")
-async def get_plugin_doc(plugin_id: str, user_info: dict = Depends(require_plugin_access)):
+async def get_plugin_doc(plugin_id: str, user_info: dict = Depends(require_permission("plugins:view"))):
     """Get documentation for a specific plugin"""
     doc = plugin_docs.get_plugin(plugin_id)
     if not doc:
@@ -366,7 +322,7 @@ async def delete_key_setting(plugin_id: str, setting_id: str, user_info: dict = 
 # ==================== API Endpoints: Comments ====================
 
 @router.post("/api/{plugin_id}/comments")
-async def add_comment(request: Request, plugin_id: str, user_info: dict = Depends(require_plugin_access)):
+async def add_comment(request: Request, plugin_id: str, user_info: dict = Depends(require_permission("plugins:view"))):
     """Add a comment (Staff + Admin)"""
     body = await request.json()
 
@@ -405,7 +361,7 @@ async def add_comment(request: Request, plugin_id: str, user_info: dict = Depend
 
 
 @router.delete("/api/{plugin_id}/comments/{comment_id}")
-async def delete_comment(plugin_id: str, comment_id: str, user_info: dict = Depends(require_plugin_access)):
+async def delete_comment(plugin_id: str, comment_id: str, user_info: dict = Depends(require_permission("plugins:view"))):
     """Delete a comment (Admin can delete any, Staff can delete own)"""
     success = plugin_docs.delete_comment(
         plugin_id=plugin_id,
@@ -429,7 +385,7 @@ async def delete_comment(plugin_id: str, comment_id: str, user_info: dict = Depe
 async def get_config_file(
     plugin_id: str,
     filename: str = "config.yml",
-    user_info: dict = Depends(require_plugin_access)
+    user_info: dict = Depends(require_permission("plugins:view"))
 ):
     """Read a config file for a plugin (read-only)"""
     result = plugin_docs.read_config_file(plugin_id, filename)
@@ -450,7 +406,7 @@ async def get_config_file(
 
 
 @router.get("/api/{plugin_id}/config/files")
-async def list_config_files(plugin_id: str, user_info: dict = Depends(require_plugin_access)):
+async def list_config_files(plugin_id: str, user_info: dict = Depends(require_permission("plugins:view"))):
     """List available config files for a plugin"""
     files = plugin_docs.list_config_files(plugin_id)
     return JSONResponse({"status": "ok", "files": files})
@@ -462,7 +418,7 @@ async def list_config_files(plugin_id: str, user_info: dict = Depends(require_pl
 async def get_notifications(
     limit: int = 50,
     unread_only: bool = False,
-    user_info: dict = Depends(require_plugin_access)
+    user_info: dict = Depends(require_permission("plugins:view"))
 ):
     """Get notifications for the current user"""
     notifications = plugin_notifications.get_notifications(
@@ -474,14 +430,14 @@ async def get_notifications(
 
 
 @router.get("/api/notifications/unread")
-async def get_unread_count(user_info: dict = Depends(require_plugin_access)):
+async def get_unread_count(user_info: dict = Depends(require_permission("plugins:view"))):
     """Get unread notification count"""
     count = plugin_notifications.get_unread_count(user_info.get("email", ""))
     return JSONResponse({"status": "ok", "count": count})
 
 
 @router.post("/api/notifications/mark-read")
-async def mark_notifications_read(request: Request, user_info: dict = Depends(require_plugin_access)):
+async def mark_notifications_read(request: Request, user_info: dict = Depends(require_permission("plugins:view"))):
     """Mark notifications as read"""
     body = await request.json()
     notification_ids = body.get("ids")  # None means mark all

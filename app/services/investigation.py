@@ -19,6 +19,8 @@ import threading
 from app.core.config import DATA_DIR, ROOT_DIR
 from app.services.watchlist import get_watchlist_entry_by_player, is_watchlisted
 
+logger = logging.getLogger(__name__)
+
 # Investigation sessions file path
 INVESTIGATIONS_FILE = DATA_DIR / "investigations.json"
 
@@ -91,7 +93,7 @@ def _load_investigations() -> dict:
         with open(INVESTIGATIONS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        print(f"[Investigation] Error loading file: {e}")
+        logger.error("Error loading file: %s", e)
         return {"sessions": []}
 
 
@@ -103,7 +105,7 @@ def _save_investigations(data: dict) -> bool:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
     except IOError as e:
-        print(f"[Investigation] Error saving file: {e}")
+        logger.error("Error saving file: %s", e)
         return False
 
 

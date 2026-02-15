@@ -7,6 +7,7 @@ Admins can configure which features are visible to specific staff members.
 """
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -14,6 +15,8 @@ from dataclasses import dataclass, asdict, field
 import threading
 
 from app.core.config import DATA_DIR
+
+logger = logging.getLogger(__name__)
 
 # Staff settings file path
 STAFF_SETTINGS_FILE = DATA_DIR / "staff_settings.json"
@@ -47,7 +50,7 @@ def _load_settings() -> dict:
         with open(STAFF_SETTINGS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        print(f"[StaffSettings] Error loading settings file: {e}")
+        logger.error("Error loading settings file: %s", e)
         return {"staff": {}}
 
 
@@ -59,7 +62,7 @@ def _save_settings(data: dict) -> bool:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
     except IOError as e:
-        print(f"[StaffSettings] Error saving settings file: {e}")
+        logger.error("Error saving settings file: %s", e)
         return False
 
 

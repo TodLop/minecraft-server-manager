@@ -88,6 +88,8 @@ public class AnvilAccessHandler {
         // Log to console
         plugin.getLogger().info(player.getName() + " purchased anvil access for " + price + " (permission: " + permission + ")");
 
+        ServerShop.depositToServerAccount(price, player.getName() + " bought anvil access");
+
         return true;
     }
 

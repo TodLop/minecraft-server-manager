@@ -1,14 +1,17 @@
-# Environment & credentials
+# Environment and credentials
 .env
 config_files/
 
 # Runtime data
 data/
+logs/
+*.log
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
+*.pytest_cache/
 .venv/
 venv/
 

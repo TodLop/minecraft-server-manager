@@ -1,0 +1,219 @@
+{# Guided Operation Card Component
+  Supports preflight, confirmation, success/failure states, and recovery playbooks.
+  Playwright selectors for testing:
+  - button[data-op='{op_type}'] - Primary action button
+  - button[data-confirm='{op_type}'] - Confirm action button
+  - [data-op-state='running'] - Running state
+  - [data-op-state='succeeded'] - Success state
+  - [data-op-state='failed'] - Failed state
+  - [data-preflight='failed'] - Preflight failed state
+  - [data-recovery-playbook] - Recovery guidance container
+  - [data-server-status] - Server status display
+
+  Usage:
+  {# Call with Alpine.js context passing opState via x-data #}
+#}
+
+{# Macro: Guided operation card #}
+{% macro operation_card(op_type, title, description, icon_color, icon_svg, confirm_message="") -%}
+<div class="operation-card glass-card glass-card-hover rounded-2xl p-5 border border-slate-700/30"
+     x-data="{
+         opState: { stage: 'idle', preflightValid: true, error: null, timeline: [] },
+         async runPreflight() {
+             const preflightResult = await window[`preflight${opType.charAt(0).toUpperCase() + opType.slice(1)}`]?.();
+             if (preflightResult && !preflightResult.valid) {
+                 this.opState.preflightValid = false;
+                 this.opState.error = preflightResult.error;
+                 this.opState.timeline.unshift({ time: new Date().toLocaleTimeString(), status: 'preflight-failed', message: preflightResult.error });
+             } else {
+                 this.opState.preflightValid = true;
+                 this.opState.stage = 'confirm';
+             }
+         },
+         async execute() {
+             this.opState.stage = 'running';
+             this.opState.timeline.unshift({ time: new Date().toLocaleTimeString(), status: 'started', message: 'Starting {{ title }}...' });
+
+             try {
+                 const result = await window[`execute${opType.charAt(0).toUpperCase() + opType.slice(1)}`]?.();
+                 if (result && result.success) {
+                     this.opState.stage = 'succeeded';
+                     this.opState.timeline[0].status = 'success';
+                     this.opState.timeline[0].message = result.message || '{{ title }} completed';
+                 } else {
+                     this.opState.stage = 'failed';
+                     this.opState.error = result?.error || 'Operation failed';
+                     this.opState.timeline[0].status = 'failed';
+                     this.opState.timeline[0].message = this.opState.error;
+                 }
+             } catch (e) {
+                 this.opState.stage = 'failed';
+                 this.opState.error = e.message || 'Unexpected error';
+                 this.opState.timeline[0].status = 'failed';
+                 this.opState.timeline[0].message = this.opState.error;
+             }
+         }
+     }"
+     :data-op-state="opState.stage">
+
+    <!-- Card Header -->
+    <div class="flex items-start justify-between mb-4">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center"
+                 :class="opState.stage === 'idle' ? '{{ icon_color }}/20' :
+                         opState.stage === 'running' ? 'blue-500/20 animate-pulse' :
+                         opState.stage === 'succeeded' ? 'green-500/20' :
+                         opState.stage === 'failed' ? 'red-500/20' : 'bg-slate-800'">
+                <svg class="w-6 h-6"
+                     :class="opState.stage === 'idle' ? 'text-{{ icon_color }}-400' :
+                             opState.stage === 'running' ? 'text-blue-400' :
+                             opState.stage === 'succeeded' ? 'text-green-400' :
+                             opState.stage === 'failed' ? 'text-red-400' : 'text-slate-400'"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {{ icon_svg|safe }}
+                </svg>
+            </div>
+            <div>
+                <h3 class="font-bold text-white">{{ title }}</h3>
+                <p class="text-sm text-slate-400 mt-0.5">{{ description }}</p>
+            </div>
+        </div>
+
+        <!-- Status Badge -->
+        <div x-show="opState.stage !== 'idle'" class="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider"
+             :class="opState.stage === 'running' ? 'bg-blue-500/20 text-blue-400' :
+                     opState.stage === 'succeeded' ? 'bg-green-500/20 text-green-400' :
+                     opState.stage === 'failed' ? 'bg-red-500/20 text-red-400' : 'bg-slate-500/20 text-slate-400'"
+             x-text="opState.stage">
+        </div>
+    </div>
+
+    <!-- Preflight Warning (if failed) -->
+    <div x-show="!opState.preflightValid" x-transition
+         class="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-3"
+         data-preflight="failed">
+        <div class="w-5 h-5 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg class="w-3 h-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-amber-400">Preflight check failed</p>
+            <p class="text-sm text-slate-400 mt-1" x-text="opState.error"></p>
+        </div>
+    </div>
+
+    <!-- Timeline (shows after operation starts) -->
+    <div x-show="opState.timeline.length > 0" x-transition class="mb-4">
+        <div class="space-y-2">
+            <template x-for="(entry, index) in opState.timeline" :key="index">
+                <div class="flex items-start gap-2 text-sm"
+                     :class="entry.status === 'success' ? 'text-green-400' :
+                             entry.status === 'failed' ? 'text-red-400' :
+                             entry.status === 'preflight-failed' ? 'text-amber-400' : 'text-slate-400'">
+                    <span class="flex-shrink-0 font-mono text-xs" x-text="entry.time"></span>
+                    <span x-text="entry.message"></span>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Recovery Playbook (shown on failure) -->
+    <div x-show="opState.stage === 'failed'" x-transition
+         class="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30"
+         data-recovery-playbook>
+        <div class="flex items-start gap-2">
+            <div class="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-semibold text-red-400">Recovery Steps</p>
+                <p class="text-sm text-slate-400 mt-1">
+                    <template x-if="opType === 'restart'">
+                        Check server logs in the Console tab. If the server fails to restart, you may need to manually start it via SSH.
+                    </template>
+                    <template x-if="opType === 'start'">
+                        Check the startup logs. If the server fails to start, verify the server.jar file and configuration files are intact.
+                    </template>
+                    <template x-if="opType === 'backup'">
+                        Check the backup scheduler logs. If backup failed, verify the Google Drive connection and service account permissions.
+                    </template>
+                    <template x-if="opType === 'update-check'">
+                        Network connectivity issue or update service is temporarily unavailable. Try again in a few minutes.
+                    </template>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex gap-2">
+        <template x-if="opState.stage === 'idle' && opState.preflightValid">
+            <button @click="runPreflight()"
+                    :data-op="opType"
+                    class="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white transition-all
+                           {{ 'bg-' + icon_color + '-500/20 hover:bg-' + icon_color + '-500/30 border-' + icon_color + '-500/30 text-' + icon_color + '-300' }}">
+                {{ title }}
+            </button>
+        </template>
+
+        <template x-if="opState.stage === 'confirm'">
+            <button @click="opState.stage = 'idle'"
+                    class="px-4 py-2.5 rounded-xl font-semibold text-slate-400 bg-slate-800/50 hover:bg-slate-800 transition-all">
+                Cancel
+            </button>
+            <button @click="execute()"
+                    :data-confirm="opType"
+                    class="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white
+                           bg-{{ icon_color }}-500 hover:bg-{{ icon_color }}-600 transition-all">
+                {{ confirm_message or 'Confirm ' + title }}
+            </button>
+        </template>
+
+        <template x-if="opState.stage === 'running'">
+            <div class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800/50 text-slate-400">
+                <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span>Processing...</span>
+            </div>
+        </template>
+
+        <template x-if="opState.stage === 'succeeded'">
+            <div class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/20 text-green-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Complete</span>
+            </div>
+            <button @click="opState = { stage: 'idle', preflightValid: true, error: null, timeline: [] }"
+                    class="px-4 py-2.5 rounded-xl font-semibold text-slate-400 bg-slate-800/50 hover:bg-slate-800 transition-all">
+                Reset
+            </button>
+        </template>
+
+        <template x-if="opState.stage === 'failed'">
+            <div class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 text-red-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>Failed</span>
+            </div>
+            <button @click="opState = { stage: 'idle', preflightValid: true, error: null, timeline: [] }"
+                    class="px-4 py-2.5 rounded-xl font-semibold text-slate-400 bg-slate-800/50 hover:bg-slate-800 transition-all">
+                Retry
+            </button>
+        </template>
+
+        <template x-if="!opState.preflightValid">
+            <button @click="opState = { stage: 'idle', preflightValid: true, error: null, timeline: [] }"
+                    class="flex-1 px-4 py-2.5 rounded-xl font-semibold text-slate-400 bg-slate-800/50 hover:bg-slate-800 transition-all">
+                Reset
+            </button>
+        </template>
+    </div>
+</div>
+{%- endmacro %}

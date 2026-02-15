@@ -1,6 +1,7 @@
 package com.nearoutpost.servershop;
 
 import net.milkbowl.vault.economy.Economy;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -84,5 +85,26 @@ public class ServerShop extends JavaPlugin {
 
     public EssentialsIntegration getEssentialsIntegration() {
         return essentialsIntegration;
+    }
+
+    /**
+     * Deposit revenue to the server treasury account (nearoutpost) via Vault.
+     * Also calls ServerAccountAPI for transaction logging if available.
+     */
+    public static void depositToServerAccount(double amount, String details) {
+        Economy econ = getEconomy();
+        if (econ != null) {
+            econ.depositPlayer("nearoutpost", amount);
+            // Call ServerAccountAPI for logging if available (no compile-time dependency)
+            try {
+                Class.forName("dev.hjjang.serveraccount.api.ServerAccountAPI")
+                     .getMethod("deposit", double.class, String.class, String.class, String.class)
+                     .invoke(null, amount, "ServerShop", null, details);
+            } catch (ClassNotFoundException ignored) {
+                // ServerAccount plugin not installed
+            } catch (Exception e) {
+                Bukkit.getLogger().warning("[ServerShop] ServerAccount logging failed: " + e.getMessage());
+            }
+        }
     }
 }

@@ -1,160 +1,14 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 
 {% block title %}Investigation Dashboard - CORA{% endblock %}
 
-{% block head %}
-<style>
-    .glass-card {
-        background: rgba(10, 10, 15, 0.6);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(168, 85, 247, 0.15);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-
-    .glass-card-hover {
-        transition: all 0.3s ease;
-    }
-
-    .glass-card-hover:hover {
-        border-color: rgba(168, 85, 247, 0.3);
-        box-shadow: 0 8px 40px rgba(168, 85, 247, 0.1);
-    }
-
-    .staff-badge {
-        background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
-        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
-    }
-
-    /* Watchlist level badges */
-    .level-suspicious {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        color: white;
-    }
-    .level-high-priority {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        color: white;
-    }
-    .level-confirmed-cheater {
-        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
-        color: white;
-    }
-
-    /* Status badges */
-    .status-pending { background: #6b7280; }
-    .status-approved { background: #10b981; }
-    .status-active { background: #3b82f6; }
-    .status-completed { background: #22c55e; }
-    .status-denied { background: #ef4444; }
-
-    .btn-primary {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-        transition: all 0.2s ease;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-    }
-
-    .btn-warning {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
-        transition: all 0.2s ease;
-    }
-
-    .btn-danger {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
-        transition: all 0.2s ease;
-    }
-
-    .btn-secondary {
-        background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
-        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
-        transition: all 0.2s ease;
-    }
-
-    .input-field {
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(71, 85, 105, 0.5);
-        transition: all 0.2s ease;
-    }
-
-    .input-field:focus {
-        border-color: rgba(168, 85, 247, 0.5);
-        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
-    }
-
-    .section-title {
-        position: relative;
-        padding-left: 12px;
-    }
-
-    .section-title::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3px;
-        height: 70%;
-        background: linear-gradient(180deg, #a855f7, #c084fc);
-        border-radius: 2px;
-    }
-
-    /* Tab styles */
-    .tab-btn {
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-    .tab-btn.active {
-        background: rgba(168, 85, 247, 0.2);
-        border-color: rgba(168, 85, 247, 0.5);
-        color: #d8b4fe;
-    }
-
-    /* Command output */
-    .command-output {
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
-        font-size: 0.75rem;
-        white-space: pre-wrap;
-        background: rgba(0, 0, 0, 0.4);
-        padding: 1rem;
-        border-radius: 0.5rem;
-        max-height: 300px;
-        overflow-y: auto;
-    }
-
-    .player-row {
-        transition: all 0.2s ease;
-    }
-    .player-row:hover {
-        background: rgba(168, 85, 247, 0.1);
-    }
-
-    /* Toast notification */
-    .toast {
-        animation: slideIn 0.3s ease-out;
-    }
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-</style>
-{% endblock %}
+{% import "components/nearoutpost/macros.html" as near %}
 
 {% block content %}
 <div x-data="investigationDashboard()" x-init="init()"
     class="min-h-screen bg-[#050505] text-slate-300 font-sans selection:bg-purple-500/30">
 
-    <!-- Background Pattern -->
-    <div class="fixed inset-0 opacity-30 pointer-events-none">
-        <div class="absolute inset-0"
-            style="background-image: radial-gradient(rgba(168, 85, 247, 0.1) 1px, transparent 1px); background-size: 40px 40px;">
-        </div>
-    </div>
+    {% include "components/nearoutpost/background_pattern.html" %}
 
     <!-- Toast Notifications -->
     <div class="fixed top-4 right-4 z-50 space-y-2">
@@ -173,11 +27,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center gap-4">
-                    <a href="/minecraft/staff"
-                        class="group flex items-center justify-center w-10 h-10 rounded-xl bg-[#0a0a0a] hover:bg-slate-800 border border-slate-700/50 transition-all">
-                        <i data-lucide="arrow-left"
-                            class="w-5 h-5 text-slate-400 group-hover:text-white group-hover:-translate-x-0.5 transition-all"></i>
-                    </a>
+                    {{ near.back_button('/minecraft/staff') }}
                     <div class="flex items-center gap-3">
                         <div class="staff-badge px-3 py-1.5 rounded-lg">
                             <span class="text-xs font-bold text-white tracking-wider">INVESTIGATION</span>
