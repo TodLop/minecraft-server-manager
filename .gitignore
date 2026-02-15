@@ -28,3 +28,6 @@ dependency-reduced-pom.xml
 # OS
 .DS_Store
 Thumbs.db
+
+# Private custom plugins (local-only)
+custom_plugins/
