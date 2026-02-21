@@ -1,0 +1,523 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Server Analytics - Minecraft Admin{% endblock %}
+
+{% block content %}
+<!-- Chart.js + plugins -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+
+<div x-data="analyticsPanel()" x-init="init()" class="min-h-screen bg-[#050505]">
+    <!-- Header -->
+    <header class="border-b border-green-500/20 bg-[#0a0a0a]/80 backdrop-blur-sm sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <a href="/minecraft/admin" class="text-slate-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                    </a>
+                    <h1 class="font-orbitron text-xl md:text-2xl text-white">
+                        <span class="text-green-400">SERVER</span> ANALYTICS
+                    </h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="/minecraft/admin/log"
+                        class="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg border border-purple-500/30 transition-all text-sm">
+                        Log
+                    </a>
+                    <a href="/minecraft/admin/console"
+                        class="px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg border border-cyan-500/30 transition-all text-sm">
+                        Console
+                    </a>
+                    <!-- Connection indicator -->
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full"
+                            :class="wsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
+                        <span class="text-xs" :class="wsConnected ? 'text-green-400' : 'text-red-400'"
+                            x-text="wsConnected ? 'LIVE' : 'DISCONNECTED'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Stat Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <!-- CPU -->
+            <div class="bg-[#0a0a0a] border border-green-500/20 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider">CPU</span>
+                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                </div>
+                <div class="text-2xl font-bold font-orbitron"
+                    :class="currentCpu > 80 ? 'text-red-400' : currentCpu > 50 ? 'text-yellow-400' : 'text-green-400'">
+                    <span x-text="currentCpu !== null ? currentCpu.toFixed(1) + '%' : '--'"></span>
+                </div>
+                <div class="text-xs text-slate-500 mt-1"
+                    x-text="currentPlayers !== null ? currentPlayers + ' player(s)' : 'Offline'"></div>
+            </div>
+
+            <!-- RAM -->
+            <div class="bg-[#0a0a0a] border border-blue-500/20 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider">RAM</span>
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                </div>
+                <div class="text-2xl font-bold font-orbitron text-blue-400">
+                    <span x-text="currentRam !== null ? currentRam.toFixed(0) + ' MB' : '--'"></span>
+                </div>
+                <div class="text-xs text-slate-500 mt-1"
+                    x-text="currentRam !== null ? (currentRam / 1024).toFixed(2) + ' GB' : ''"></div>
+            </div>
+
+            <!-- TPS -->
+            <div class="bg-[#0a0a0a] border border-emerald-500/20 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider">TPS</span>
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div class="text-2xl font-bold font-orbitron"
+                    :class="currentTps !== null ? (currentTps < 15 ? 'text-red-400' : currentTps < 18 ? 'text-yellow-400' : 'text-emerald-400') : 'text-slate-500'">
+                    <span x-text="currentTps !== null ? currentTps.toFixed(1) : '--'"></span>
+                </div>
+                <div class="text-xs text-slate-500 mt-1">of 20.0 max</div>
+            </div>
+
+            <!-- MSPT -->
+            <div class="bg-[#0a0a0a] border border-orange-500/20 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider">MSPT</span>
+                    <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="text-2xl font-bold font-orbitron"
+                    :class="currentMspt !== null ? (currentMspt > 40 ? 'text-red-400' : currentMspt > 25 ? 'text-yellow-400' : 'text-orange-400') : 'text-slate-500'">
+                    <span x-text="currentMspt !== null ? currentMspt.toFixed(1) + ' ms' : '--'"></span>
+                </div>
+                <div class="text-xs text-slate-500 mt-1">50ms = lag</div>
+            </div>
+
+            <!-- Disk -->
+            <div class="bg-[#0a0a0a] border border-amber-500/20 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-slate-400 uppercase tracking-wider">Disk</span>
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                    </svg>
+                </div>
+                <div class="text-2xl font-bold font-orbitron text-amber-400">
+                    <span x-text="currentDisk !== null ? (currentDisk > 1024 ? (currentDisk / 1024).toFixed(1) + ' GB' : currentDisk.toFixed(0) + ' MB') : '--'"></span>
+                </div>
+                <div class="text-xs text-slate-500 mt-1"
+                    x-text="currentDisk !== null && currentDisk > 1024 ? currentDisk.toFixed(0) + ' MB' : ''"></div>
+            </div>
+        </div>
+
+        <!-- Time Range Selector -->
+        <div class="flex items-center gap-2">
+            <span class="text-sm text-slate-400 mr-2">Range:</span>
+            <template x-for="r in ['1h', '6h', '24h', '7d', '30d']" :key="r">
+                <button @click="setRange(r)"
+                    class="px-3 py-1.5 text-sm rounded-lg border transition-all"
+                    :class="selectedRange === r
+                        ? 'bg-green-500/30 text-green-300 border-green-500/50'
+                        : 'bg-[#0a0a0a] text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-300'"
+                    x-text="r"></button>
+            </template>
+            <button @click="resetZoom()" class="ml-auto px-3 py-1.5 text-sm rounded-lg border bg-[#0a0a0a] text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-300 transition-all">
+                Reset Zoom
+            </button>
+        </div>
+
+        <!-- CPU & RAM Chart -->
+        <div class="bg-[#0a0a0a] border border-slate-700/50 rounded-xl p-4">
+            <h2 class="text-sm text-slate-400 uppercase tracking-wider mb-3">CPU & RAM Over Time</h2>
+            <div class="relative" style="height: 300px;">
+                <canvas id="metrics-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- TPS & MSPT Chart -->
+        <div class="bg-[#0a0a0a] border border-slate-700/50 rounded-xl p-4">
+            <h2 class="text-sm text-slate-400 uppercase tracking-wider mb-3">TPS & MSPT Over Time</h2>
+            <div class="relative" style="height: 300px;">
+                <canvas id="tps-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Disk Size Chart -->
+        <div class="bg-[#0a0a0a] border border-slate-700/50 rounded-xl p-4">
+            <h2 class="text-sm text-slate-400 uppercase tracking-wider mb-3">Disk Usage Over Time</h2>
+            <div class="relative" style="height: 220px;">
+                <canvas id="disk-chart"></canvas>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+function analyticsPanel() {
+    return {
+        // State
+        wsConnected: false,
+        selectedRange: '1h',
+        currentCpu: null,
+        currentRam: null,
+        currentDisk: null,
+        currentPlayers: null,
+        currentTps: null,
+        currentMspt: null,
+
+        // Chart instances
+        metricsChart: null,
+        tpsChart: null,
+        diskChart: null,
+
+        // WebSocket
+        ws: null,
+        wsReconnectTimer: null,
+
+        async init() {
+            this.createCharts();
+            await this.loadCurrentMetrics();
+            await this.loadMetrics();
+            await this.loadDisk();
+            this.connectWebSocket();
+        },
+
+        _chartDefaults() {
+            return {
+                backgroundColor: '#0a0a0a',
+                borderColor: '#334155',
+                gridColor: 'rgba(30, 41, 59, 0.5)',
+                tickColor: '#64748b',
+            };
+        },
+
+        createCharts() {
+            const defaults = this._chartDefaults();
+
+            // CPU & RAM dual-axis chart
+            const metricsCtx = document.getElementById('metrics-chart').getContext('2d');
+            this.metricsChart = new Chart(metricsCtx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'CPU %',
+                            borderColor: '#22c55e',
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            pointHitRadius: 4,
+                            tension: 0.3,
+                            fill: true,
+                            yAxisID: 'y',
+                            data: [],
+                        },
+                        {
+                            label: 'RAM MB',
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            pointHitRadius: 4,
+                            tension: 0.3,
+                            fill: true,
+                            yAxisID: 'y1',
+                            data: [],
+                        }
+                    ]
+                },
+                options: this._timeChartOptions('CPU %', 'RAM MB', {
+                    yMin: 0, yLabel: 'CPU %',
+                    y1Label: 'RAM (MB)',
+                }),
+            });
+
+            // TPS & MSPT dual-axis chart
+            const tpsCtx = document.getElementById('tps-chart').getContext('2d');
+            this.tpsChart = new Chart(tpsCtx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'TPS',
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            pointHitRadius: 4,
+                            tension: 0.3,
+                            fill: true,
+                            yAxisID: 'y',
+                            data: [],
+                        },
+                        {
+                            label: 'MSPT',
+                            borderColor: '#f97316',
+                            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            pointHitRadius: 4,
+                            tension: 0.3,
+                            fill: true,
+                            yAxisID: 'y1',
+                            data: [],
+                        }
+                    ]
+                },
+                options: this._timeChartOptions('TPS', 'MSPT', {
+                    yMin: 0, yMax: 22, yLabel: 'TPS',
+                    y1Label: 'MSPT (ms)',
+                }),
+            });
+
+            // Disk area chart
+            const diskCtx = document.getElementById('disk-chart').getContext('2d');
+            this.diskChart = new Chart(diskCtx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Disk MB',
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        pointHitRadius: 4,
+                        tension: 0.3,
+                        fill: true,
+                        data: [],
+                    }]
+                },
+                options: this._timeChartOptions('Disk', null, {
+                    yMin: 0, yLabel: 'Size (MB)',
+                }),
+            });
+        },
+
+        _timeChartOptions(leftLabel, rightLabel, opts = {}) {
+            const defaults = this._chartDefaults();
+            const scales = {
+                x: {
+                    type: 'time',
+                    time: { tooltipFormat: 'MMM d, HH:mm:ss' },
+                    ticks: { color: defaults.tickColor, maxTicksLimit: 10 },
+                    grid: { color: defaults.gridColor },
+                    border: { color: defaults.borderColor },
+                },
+                y: {
+                    position: 'left',
+                    title: { display: true, text: opts.yLabel || leftLabel, color: defaults.tickColor },
+                    ticks: { color: defaults.tickColor },
+                    grid: { color: defaults.gridColor },
+                    border: { color: defaults.borderColor },
+                    min: opts.yMin,
+                    max: opts.yMax,
+                },
+            };
+
+            if (rightLabel) {
+                scales.y1 = {
+                    position: 'right',
+                    title: { display: true, text: opts.y1Label || rightLabel, color: defaults.tickColor },
+                    ticks: { color: defaults.tickColor },
+                    grid: { drawOnChartArea: false },
+                    border: { color: defaults.borderColor },
+                };
+            }
+
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales,
+                plugins: {
+                    legend: {
+                        labels: { color: defaults.tickColor, usePointStyle: true, pointStyle: 'line' },
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#cbd5e1',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                    },
+                    zoom: {
+                        pan: { enabled: true, mode: 'x' },
+                        zoom: {
+                            wheel: { enabled: true },
+                            pinch: { enabled: true },
+                            mode: 'x',
+                        },
+                    },
+                },
+            };
+        },
+
+        async loadCurrentMetrics() {
+            try {
+                const resp = await fetch('/minecraft/admin/api/analytics/current');
+                const data = await resp.json();
+                if (data.metric) {
+                    this.currentCpu = data.metric.cpu_percent;
+                    this.currentRam = data.metric.ram_mb;
+                    this.currentPlayers = data.metric.players;
+                    this.currentTps = data.metric.tps;
+                    this.currentMspt = data.metric.mspt;
+                }
+                if (data.disk_mb !== null) {
+                    this.currentDisk = data.disk_mb;
+                }
+            } catch (e) {
+                console.error('Failed to load current metrics:', e);
+            }
+        },
+
+        async loadMetrics() {
+            try {
+                const resp = await fetch(`/minecraft/admin/api/analytics/metrics?range=${this.selectedRange}`);
+                const data = await resp.json();
+
+                const cpuData = [];
+                const ramData = [];
+                const tpsData = [];
+                const msptData = [];
+
+                for (const m of data.metrics) {
+                    const t = m.timestamp * 1000; // Chart.js time scale uses ms
+                    cpuData.push({ x: t, y: m.cpu_percent });
+                    ramData.push({ x: t, y: m.ram_mb });
+                    if (m.tps !== null && m.tps !== undefined) {
+                        tpsData.push({ x: t, y: m.tps });
+                    }
+                    if (m.mspt !== null && m.mspt !== undefined) {
+                        msptData.push({ x: t, y: m.mspt });
+                    }
+                }
+
+                this.metricsChart.data.datasets[0].data = cpuData;
+                this.metricsChart.data.datasets[1].data = ramData;
+                this.metricsChart.resetZoom();
+                this.metricsChart.update('none');
+
+                this.tpsChart.data.datasets[0].data = tpsData;
+                this.tpsChart.data.datasets[1].data = msptData;
+                this.tpsChart.resetZoom();
+                this.tpsChart.update('none');
+            } catch (e) {
+                console.error('Failed to load metrics:', e);
+            }
+        },
+
+        async loadDisk() {
+            try {
+                const diskRange = ['7d', '30d'].includes(this.selectedRange) ? this.selectedRange : '30d';
+                const resp = await fetch(`/minecraft/admin/api/analytics/disk?range=${diskRange}`);
+                const data = await resp.json();
+
+                const diskData = data.disk.map(d => ({
+                    x: d.timestamp * 1000,
+                    y: d.size_mb,
+                }));
+
+                this.diskChart.data.datasets[0].data = diskData;
+                this.diskChart.resetZoom();
+                this.diskChart.update('none');
+            } catch (e) {
+                console.error('Failed to load disk data:', e);
+            }
+        },
+
+        setRange(range) {
+            this.selectedRange = range;
+            this.loadMetrics();
+            this.loadDisk();
+        },
+
+        resetZoom() {
+            this.metricsChart?.resetZoom();
+            this.tpsChart?.resetZoom();
+            this.diskChart?.resetZoom();
+        },
+
+        connectWebSocket() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${location.host}/minecraft/admin/ws/minecraft/metrics`;
+
+            this.ws = new WebSocket(wsUrl);
+
+            this.ws.onopen = () => {
+                this.wsConnected = true;
+                if (this.wsReconnectTimer) {
+                    clearTimeout(this.wsReconnectTimer);
+                    this.wsReconnectTimer = null;
+                }
+            };
+
+            this.ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'heartbeat') return;
+                if (data.type === 'metric') {
+                    // Update stat cards
+                    this.currentCpu = data.cpu_percent;
+                    this.currentRam = data.ram_mb;
+                    this.currentPlayers = data.players;
+                    if (data.tps !== null && data.tps !== undefined) this.currentTps = data.tps;
+                    if (data.mspt !== null && data.mspt !== undefined) this.currentMspt = data.mspt;
+
+                    // Append to charts (only if viewing 1h range for smooth live updates)
+                    if (this.selectedRange === '1h') {
+                        const t = data.timestamp * 1000;
+
+                        this.metricsChart.data.datasets[0].data.push({ x: t, y: data.cpu_percent });
+                        this.metricsChart.data.datasets[1].data.push({ x: t, y: data.ram_mb });
+                        this.metricsChart.update('none');
+
+                        if (data.tps !== null && data.tps !== undefined) {
+                            this.tpsChart.data.datasets[0].data.push({ x: t, y: data.tps });
+                        }
+                        if (data.mspt !== null && data.mspt !== undefined) {
+                            this.tpsChart.data.datasets[1].data.push({ x: t, y: data.mspt });
+                        }
+                        if (data.tps !== null || data.mspt !== null) {
+                            this.tpsChart.update('none');
+                        }
+                    }
+                }
+            };
+
+            this.ws.onclose = () => {
+                this.wsConnected = false;
+                // Reconnect after 5 seconds
+                this.wsReconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
+            };
+
+            this.ws.onerror = () => {
+                this.ws.close();
+            };
+        },
+    };
+}
+</script>
+{% endblock %}

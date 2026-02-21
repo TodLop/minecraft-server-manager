@@ -31,7 +31,7 @@
                 </div>
 
                 <div class="flex items-center gap-4">
-                    <a href="#" title="Disabled in OSS build"
+                    <a href="/minecraft/taskboard" title="Task Board"
                         class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 hover:border-purple-500/50 transition-all">
                         <i data-lucide="clipboard-list" class="w-4 h-4 text-purple-400 group-hover:text-purple-300"></i>
                         <span class="hidden sm:inline text-sm font-medium text-purple-300 group-hover:text-purple-200">Task Board</span>
@@ -43,6 +43,16 @@
                         <span x-show="unreadCount > 0" x-text="unreadCount < 10 ? unreadCount : '9+'"
                             class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center"></span>
                     </a>
+                    <a href="/minecraft/backend-docs" title="Operations Docs" x-show="hasPermission('ops:backend_docs:view')"
+                        class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 transition-all">
+                        <i data-lucide="book-open-check" class="w-4 h-4 text-amber-300 group-hover:text-amber-200"></i>
+                        <span class="hidden sm:inline text-sm font-medium text-amber-200 group-hover:text-amber-100">Operations</span>
+                    </a>
+                    <button @click="openPreferences()" title="Preferences"
+                        class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-700/20 hover:bg-slate-700/35 border border-slate-600/40 hover:border-slate-500/60 transition-all">
+                        <i data-lucide="settings" class="w-4 h-4 text-slate-300 group-hover:text-white"></i>
+                        <span class="hidden sm:inline text-sm font-medium text-slate-200 group-hover:text-white">Preferences</span>
+                    </button>
                     <div
                         class="hidden sm:flex items-center gap-3 px-4 py-2 rounded-xl bg-[#0a0a0a] border border-slate-700/50">
                         <div
@@ -145,7 +155,7 @@
                 <div class="flex items-center gap-4">
                     <span class="flex items-center gap-1.5">
                         <i data-lucide="globe" class="w-3.5 h-3.5"></i>
-                        nearoutpost.example.com
+                        nearoutpost.hjjang.dev
                     </span>
                     <span class="flex items-center gap-1.5">
                         <i data-lucide="hash" class="w-3.5 h-3.5"></i>
@@ -258,7 +268,7 @@
                                     class="player-card group flex items-center gap-3 p-3 rounded-xl bg-[#0a0a0a] border border-slate-700/30 cursor-default">
                                     <div
                                         class="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center overflow-hidden ring-2 ring-slate-600/30">
-                                        <img :src="`https://minotar.net/avatar/${extractUsername(player)}/40`"
+                                        <img :src="`https://mc-heads.net/avatar/${encodeURIComponent(extractUsername(player))}/40`"
                                             class="w-full h-full object-cover"
                                             style="image-rendering: pixelated;"
                                             :alt="extractUsername(player)"
@@ -893,6 +903,103 @@
             <span x-text="toast.message" class="text-sm font-medium"></span>
         </div>
 
+        <!-- Preferences Modal -->
+        <div x-show="preferencesModal" x-transition
+            @keydown.escape.window="preferencesModal = false"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="preferencesModal = false"></div>
+            <div class="relative w-full max-w-xl glass-card rounded-2xl border border-slate-600/50 p-5">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <h3 class="text-lg font-bold text-white">Preferences</h3>
+                    <button @click="preferencesModal = false" class="text-slate-400 hover:text-white" aria-label="Close preferences modal">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Language</label>
+                        <select x-model="prefDraft.language" class="input-field w-full rounded-lg px-3 py-2 text-white">
+                            <option value="ko">한국어</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Font Size</label>
+                        <select x-model="prefDraft.font_scale" class="input-field w-full rounded-lg px-3 py-2 text-white">
+                            <option value="sm">Small</option>
+                            <option value="md">Medium</option>
+                            <option value="lg">Large</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Toast Duration</label>
+                        <select x-model.number="prefDraft.toast_duration_ms" class="input-field w-full rounded-lg px-3 py-2 text-white">
+                            <option :value="2000">2s</option>
+                            <option :value="4000">4s</option>
+                            <option :value="7000">7s</option>
+                            <option :value="10000">10s</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-sm">
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-700/40">
+                        <span class="text-slate-200">High Contrast</span>
+                        <input type="checkbox" x-model="prefDraft.high_contrast" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-700/40">
+                        <span class="text-slate-200">Reduce Motion</span>
+                        <input type="checkbox" x-model="prefDraft.reduced_motion" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500">
+                    </label>
+                </div>
+
+                <div class="mt-4 flex items-center justify-end gap-2">
+                    <button @click="preferencesModal = false"
+                        class="px-4 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-200">
+                        Cancel
+                    </button>
+                    <button @click="savePreferences()" :disabled="savingPreferences"
+                        class="px-4 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 disabled:opacity-50">
+                        <span x-text="savingPreferences ? 'Saving...' : 'Save Preferences'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Dialog -->
+        <div x-show="confirmDialog.show" x-transition
+            @keydown.escape.window="resolveConfirm(false)"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="resolveConfirm(false)"></div>
+            <div class="relative w-full max-w-md glass-card rounded-2xl border border-slate-600/50 p-5">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg font-bold text-white" x-text="confirmDialog.title"></h3>
+                        <p class="text-sm text-slate-400 mt-2" x-text="confirmDialog.message"></p>
+                    </div>
+                    <button @click="resolveConfirm(false)"
+                        class="text-slate-400 hover:text-white transition-colors"
+                        aria-label="Close confirmation dialog">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="mt-5 flex gap-2">
+                    <button @click="resolveConfirm(false)"
+                        class="flex-1 px-4 py-2.5 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-200 font-medium transition-all">
+                        Cancel
+                    </button>
+                    <button x-ref="confirmPrimaryBtn" @click="resolveConfirm(true)"
+                        :class="confirmDialog.intent === 'warning'
+                            ? 'bg-amber-500/25 hover:bg-amber-500/35 border border-amber-400/40 text-amber-100'
+                            : 'bg-red-500/25 hover:bg-red-500/35 border border-red-400/40 text-red-100'"
+                        class="flex-1 px-4 py-2.5 rounded-xl font-semibold transition-all">
+                        <span x-text="confirmDialog.confirmText"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </main>
 </div>
 
@@ -912,6 +1019,32 @@ function staffPanel() {
         // UI state
         activeTab: 'players',
         toast: { show: false, message: '', type: 'info' },
+        confirmDialog: {
+            show: false,
+            title: '',
+            message: '',
+            confirmText: 'Confirm',
+            intent: 'warning',
+            resolver: null
+        },
+        preferencesModal: false,
+        savingPreferences: false,
+        preferences: {
+            language: 'ko',
+            theme: 'dark',
+            font_scale: 'md',
+            high_contrast: false,
+            reduced_motion: false,
+            toast_duration_ms: 4000
+        },
+        prefDraft: {
+            language: 'ko',
+            theme: 'dark',
+            font_scale: 'md',
+            high_contrast: false,
+            reduced_motion: false,
+            toast_duration_ms: 4000
+        },
 
         // Ban form
         banning: false,
@@ -963,7 +1096,9 @@ function staffPanel() {
 
         init() {
             lucide.createIcons();
+            this.applyPreferences();
             this.loadMySettings();
+            this.loadPreferences();
             if (this.hasPermission('status:view')) {
                 this.refreshStatus();
                 setInterval(() => this.refreshStatus(), 5000);
@@ -1029,12 +1164,13 @@ function staffPanel() {
 
         getAvatarUrls(playerName) {
             const cleanUsername = this.extractUsername(playerName);
+            const safeUsername = encodeURIComponent(cleanUsername);
             return [
-                `https://minotar.net/avatar/${cleanUsername}/40`,
-                `https://mc-heads.net/avatar/${cleanUsername}/40`,
-                `https://minotar.net/avatar/${cleanUsername}/40?t=${Date.now()}`,
-                `https://crafthead.net/avatar/${cleanUsername}/40`,
-                `https://minotar.net/avatar/Steve/40`
+                `https://mc-heads.net/avatar/${safeUsername}/40`,
+                `https://minotar.net/avatar/${safeUsername}/40`,
+                `https://mc-heads.net/avatar/${safeUsername}/40?retry=1`,
+                `https://crafthead.net/avatar/${safeUsername}/40`,
+                `https://mc-heads.net/avatar/Steve/40`
             ];
         },
 
@@ -1051,14 +1187,119 @@ function staffPanel() {
             }
         },
 
+        applyPreferences() {
+            const html = document.documentElement;
+            html.lang = this.preferences.language || 'ko';
+            html.setAttribute('data-font-scale', this.preferences.font_scale || 'md');
+            html.setAttribute('data-high-contrast', this.preferences.high_contrast ? 'true' : 'false');
+            html.setAttribute('data-reduced-motion', this.preferences.reduced_motion ? 'true' : 'false');
+            this.preferences.theme = 'dark';
+            this.prefDraft.theme = 'dark';
+            html.classList.remove('pref-theme-light');
+            html.classList.add('pref-theme-dark');
+        },
+
+        async loadPreferences() {
+            try {
+                const response = await fetch('/minecraft/staff/api/preferences');
+                if (!response.ok) return;
+                const data = await response.json();
+                if (data.status === 'ok' && data.preferences) {
+                    this.preferences = { ...this.preferences, ...data.preferences, theme: 'dark' };
+                    this.prefDraft = { ...this.preferences, theme: 'dark' };
+                    this.applyPreferences();
+                }
+            } catch (e) {
+                console.error('Failed to load preferences:', e);
+            }
+        },
+
+        openPreferences() {
+            this.prefDraft = { ...this.preferences, theme: 'dark' };
+            this.preferencesModal = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        async savePreferences() {
+            this.savingPreferences = true;
+            try {
+                const payload = { ...this.prefDraft, theme: 'dark' };
+                const response = await fetch('/minecraft/staff/api/preferences', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (response.ok && data.status === 'ok') {
+                    this.preferences = { ...this.preferences, ...(data.preferences || {}), theme: 'dark' };
+                    this.prefDraft = { ...this.preferences, theme: 'dark' };
+                    this.applyPreferences();
+                    this.preferencesModal = false;
+                    this.showToast('Preferences saved', 'success');
+                } else {
+                    this.showToast(data.error || 'Failed to save preferences', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to save preferences', 'error');
+            } finally {
+                this.savingPreferences = false;
+            }
+        },
+
+        tr(koText, enText) {
+            return this.preferences.language === 'en' ? enText : koText;
+        },
+
+        confirmAction({
+            title = 'Confirm Action',
+            message = '',
+            confirmText = 'Confirm',
+            intent = 'warning'
+        }) {
+            return new Promise((resolve) => {
+                this.confirmDialog = {
+                    show: true,
+                    title,
+                    message,
+                    confirmText,
+                    intent,
+                    resolver: resolve
+                };
+                this.$nextTick(() => {
+                    this.$refs.confirmPrimaryBtn?.focus();
+                    lucide.createIcons();
+                });
+            });
+        },
+
+        resolveConfirm(confirmed) {
+            if (!this.confirmDialog.show) return;
+            const resolver = this.confirmDialog.resolver;
+            this.confirmDialog = {
+                show: false,
+                title: '',
+                message: '',
+                confirmText: 'Confirm',
+                intent: 'warning',
+                resolver: null
+            };
+            if (typeof resolver === 'function') resolver(confirmed);
+        },
+
         async startServer() {
-            if (!confirm('Start the server?')) return;
+            const confirmed = await this.confirmAction({
+                title: this.tr('서버 시작', 'Start Server'),
+                message: this.tr('서버 프로세스를 시작하고 플레이어 접속을 허용합니다.', 'The server process will start and become available to players.'),
+                confirmText: this.tr('시작', 'Start'),
+                intent: 'warning'
+            });
+            if (!confirmed) return;
             this.loading = true;
             try {
                 const response = await fetch('/minecraft/staff/api/minecraft/server/start', { method: 'POST' });
                 const data = await response.json();
                 if (data.success) {
-                    this.showToast('Server starting...', 'success');
+                    this.showToast(this.tr('서버 시작 중...', 'Server starting...'), 'success');
                     this.serverRunning = true;
                     let checkCount = 0;
                     const fastPoll = setInterval(() => {
@@ -1067,28 +1308,44 @@ function staffPanel() {
                         if (checkCount > 10) clearInterval(fastPoll);
                     }, 2000);
                 } else {
-                    this.showToast('Failed: ' + data.error, 'error');
+                    this.showToast(this.tr('실패: ', 'Failed: ') + data.error, 'error');
                 }
             } catch (e) {
-                this.showToast('Failed to start server', 'error');
+                this.showToast(this.tr('서버 시작 실패', 'Failed to start server'), 'error');
             } finally {
                 this.loading = false;
             }
         },
 
         async restartServer() {
-            if (!confirm('Restart the server? Players will be kicked temporarily.')) return;
+            const confirmed = await this.confirmAction({
+                title: this.tr('서버 재시작', 'Restart Server'),
+                message: this.tr('재시작 중에는 접속한 플레이어가 모두 퇴장됩니다.', 'All connected players will be disconnected during restart.'),
+                confirmText: this.tr('재시작', 'Restart'),
+                intent: 'danger'
+            });
+            if (!confirmed) return;
             this.loading = true;
             try {
                 const response = await fetch('/minecraft/staff/api/minecraft/server/restart', { method: 'POST' });
                 const data = await response.json();
                 if (data.success) {
-                    this.showToast('Restart command sent!', 'success');
+                    this.showToast(this.tr('재시작 명령 전송 완료', 'Restart command sent!'), 'success');
                 } else {
-                    this.showToast('Failed: ' + data.error, 'error');
+                    if (data.error_code === 'restart_in_progress') {
+                        this.showToast(this.tr('이미 재시작이 진행 중입니다.', 'Restart is already in progress.'), 'error');
+                    } else if (data.error_code === 'restart_cooldown') {
+                        const wait = Number.isFinite(Number(data.retry_after_seconds)) ? Number(data.retry_after_seconds) : 0;
+                        this.showToast(
+                            this.tr('서버 안정화 대기 중입니다. ', 'Server is stabilizing. Retry in ') + `${wait}s`,
+                            'error'
+                        );
+                    } else {
+                        this.showToast(this.tr('실패: ', 'Failed: ') + data.error, 'error');
+                    }
                 }
             } catch (e) {
-                this.showToast('Failed to restart server', 'error');
+                this.showToast(this.tr('서버 재시작 실패', 'Failed to restart server'), 'error');
             } finally {
                 this.loading = false;
             }
@@ -1354,6 +1611,11 @@ function staffPanel() {
                 if (data.status === 'ok') {
                     this.permissions = data.permissions || [];
                     this.visibleModules = data.visible_modules || [];
+                    if (data.preferences) {
+                        this.preferences = { ...this.preferences, ...data.preferences, theme: 'dark' };
+                        this.prefDraft = { ...this.preferences, theme: 'dark' };
+                        this.applyPreferences();
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load settings:', e);
@@ -1398,7 +1660,8 @@ function staffPanel() {
         showToast(message, type = 'info') {
             this.toast = { show: true, message, type };
             this.$nextTick(() => lucide.createIcons());
-            setTimeout(() => this.toast.show = false, 4000);
+            const duration = this.preferences.toast_duration_ms || 4000;
+            setTimeout(() => this.toast.show = false, duration);
         }
     }
 }

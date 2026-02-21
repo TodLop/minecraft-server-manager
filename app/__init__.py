@@ -98,9 +98,10 @@ def create_app():
     else:
         print(f"Warning: Static directory not found at {STATIC_DIR}")
 
-    from app.routers import admin, plugin_docs, staff
+    from app.routers import admin, backend_docs, plugin_docs, staff
 
     app.include_router(admin.router, tags=["Admin"])
+    app.include_router(backend_docs.router, tags=["BackendDocs"])
     app.include_router(staff.router, tags=["Staff"])
     app.include_router(plugin_docs.router, tags=["PluginDocs"])
 

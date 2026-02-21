@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minecraft Server Manager | Not Found</title>
+    <title>Digital Sanctuary | Access Denied</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -48,7 +48,7 @@
         </div>
 
         <h1 class="text-6xl font-bold text-white font-orbitron mb-2 tracking-tighter text-red-500" style="text-shadow: 0 0 10px rgba(239,68,68,0.5);">
-            404
+            {{ error_title | default("404") }}
         </h1>
         
         <h2 class="text-xl text-red-400 font-bold tracking-[0.3em] uppercase mb-6 border-b border-red-900/30 pb-4 inline-block">
@@ -56,7 +56,7 @@
         </h2>
 
         <p class="text-gray-400 text-lg mb-8 leading-relaxed">
-            The neural link you are trying to access is invalid, expired, or has been revoked by the operator.
+            {{ error_message | default("The neural link you are trying to access is invalid, expired, or has been revoked by the operator.") }}
         </p>
 
         <a href="/" class="group relative inline-flex items-center gap-2 px-8 py-3 bg-gray-900 border border-gray-700 hover:border-red-500/50 rounded-lg text-gray-300 hover:text-white transition-all duration-300">

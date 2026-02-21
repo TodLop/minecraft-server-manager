@@ -33,7 +33,7 @@ MODRINTH_API = "https://api.modrinth.com/v2"
 
 # HTTP client settings
 TIMEOUT = 30.0
-USER_AGENT = "MinecraftServerManager-Updater/1.0"
+USER_AGENT = "CORA-MinecraftUpdater/1.0 (hjjang.dev)"
 
 
 @dataclass

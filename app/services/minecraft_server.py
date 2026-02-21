@@ -16,8 +16,10 @@ import logging
 import os
 import re
 import signal
+import socket
 import subprocess
 import time
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -40,7 +42,7 @@ SERVER_PROPERTIES = MINECRAFT_SERVER_PATH / "server.properties"
 START_SCRIPT = MINECRAFT_SERVER_PATH / "start.sh"
 LOGS_DIR = MINECRAFT_SERVER_PATH / "logs"
 LATEST_LOG = LOGS_DIR / "latest.log"
-CONSOLE_HISTORY_FILE = LOGS_DIR / "minecraft_console_history.jsonl"
+CONSOLE_HISTORY_FILE = LOGS_DIR / "cora_console_history.jsonl"
 PID_FILE = MINECRAFT_SERVER_PATH / "server.pid"
 
 # Log messages to filter out (noise)
@@ -51,12 +53,23 @@ LOG_FILTER_PATTERNS = [
 
 # Status cache TTL
 STATUS_CACHE_TTL = 5.0
+DEFAULT_READY_TIMEOUT_SEC = 120
+READY_POLL_INTERVAL_SEC = 1.0
+PROCESS_BOOT_GRACE_SEC = 20
+RESTART_START_RETRIES = 2
+RESTART_RETRY_DELAY_SEC = 3
+RESTART_COOLDOWN_SECONDS = 120
 
 
 @dataclass
 class ServerStatus:
     """Server status information"""
     running: bool = False
+    process_running: bool = False
+    game_port_listening: bool = False
+    rcon_port_listening: bool = False
+    healthy: bool = False
+    state_reason: str = "stopped"
     pid: Optional[int] = None
     uptime_seconds: Optional[int] = None
     started_at: Optional[str] = None
@@ -73,6 +86,7 @@ class ServerManager:
         self.log_buffer: deque = deque(maxlen=500)
         self.log_subscribers: List[Callable] = []
         self.process_lock = asyncio.Lock()
+        self.restart_guard_lock = asyncio.Lock()
         self.log_reader_task: Optional[asyncio.Task] = None
         self.last_log_position: int = 0
         self.last_log_inode: Optional[int] = None
@@ -85,6 +99,18 @@ class ServerManager:
         # Deduplication
         self.last_message: str = ""
         self.last_message_time: float = 0.0
+
+        # Restart deduplication guard
+        self.restart_in_progress: bool = False
+        self.last_restart_completed_at: Optional[datetime] = None
+        self.last_restart_source: str = ""
+
+    def _restart_cooldown_remaining_seconds(self, now: datetime) -> int:
+        if self.last_restart_completed_at is None:
+            return 0
+        elapsed = (now - self.last_restart_completed_at).total_seconds()
+        remaining = RESTART_COOLDOWN_SECONDS - elapsed
+        return max(0, int(math.ceil(remaining)))
 
     # ------------------------------------------------------------------
     # Log filtering & persistence
@@ -193,29 +219,69 @@ class ServerManager:
             pass
         return None
 
-    def _is_server_running_sync(self) -> bool:
-        """Sync version — shells out to ps/pgrep. Use is_server_running() for async."""
+    @staticmethod
+    def _get_process_start_time(pid: int) -> Optional[datetime]:
+        """Get the actual start time of a process from the OS.
+
+        Uses ``ps -o lstart=`` which returns a string like
+        ``Wed Feb 19 19:25:17 2026``.  This is independent of the Python
+        app lifecycle, so run.py restarts don't affect the value.
+        """
+        try:
+            result = subprocess.run(
+                ["ps", "-o", "lstart=", "-p", str(pid)],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                # macOS format: "Wed Feb 19 19:25:17 2026"
+                raw = result.stdout.strip()
+                return datetime.strptime(raw, "%a %b %d %H:%M:%S %Y")
+        except Exception as e:
+            logger.warning(f"Failed to get process start time for PID {pid}: {e}")
+        return None
+
+    def _get_process_snapshot_sync(self) -> tuple[bool, Optional[int], bool]:
+        """
+        Return process snapshot as (process_running, pid, stale_pid_detected).
+        Also heals stale PID files when detected.
+        """
         pid = self._read_pid_file()
         if pid and self._is_minecraft_process(pid):
-            return True
+            return True, pid, False
 
+        stale_pid_detected = False
         if pid:
+            stale_pid_detected = True
             logger.warning(f"Stale PID file detected (PID {pid} is not Minecraft), cleaning up")
             self._delete_pid_file()
 
         found_pid = self._find_minecraft_pid()
         if found_pid:
-            logger.info(f"Found Minecraft process via pgrep: PID {found_pid}")
+            if pid != found_pid:
+                logger.info(f"Found Minecraft process via pgrep: PID {found_pid}")
             self._write_pid_file(found_pid)
-            return True
+            return True, found_pid, stale_pid_detected
 
-        return False
+        return False, None, stale_pid_detected
+
+    @staticmethod
+    def _is_port_listening(port: int, host: str = "127.0.0.1") -> bool:
+        """Check whether a local TCP port accepts connections."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.5)
+                return sock.connect_ex((host, int(port))) == 0
+        except OSError:
+            return False
+
+    def _is_server_running_sync(self) -> bool:
+        """Sync version — shells out to ps/pgrep. Use is_server_running() for async."""
+        running, _, _ = self._get_process_snapshot_sync()
+        return running
 
     def _get_server_pid_sync(self) -> Optional[int]:
-        pid = self._read_pid_file()
-        if pid and self._is_minecraft_process(pid):
-            return pid
-        return self._find_minecraft_pid()
+        _, pid, _ = self._get_process_snapshot_sync()
+        return pid
 
     # ------------------------------------------------------------------
     # Async wrappers (run blocking I/O in thread pool)
@@ -227,11 +293,87 @@ class ServerManager:
     async def get_server_pid_async(self) -> Optional[int]:
         return await asyncio.to_thread(self._get_server_pid_sync)
 
+    def _probe_rcon_ready_once(self) -> tuple[bool, str]:
+        """Best-effort readiness check: RCON connect + simple command."""
+        rcon_config = get_rcon_config()
+        if not rcon_config.enabled or not rcon_config.password:
+            return False, "rcon_not_configured"
+
+        client = RCONClient(rcon_config.host, rcon_config.port, rcon_config.password)
+        try:
+            if not client.connect():
+                return False, "rcon_connect_failed"
+            client.send_command("list")
+            return True, "ready"
+        except Exception as e:
+            return False, f"rcon_error: {e}"
+        finally:
+            client.disconnect()
+
+    async def _wait_for_server_ready(self, timeout_sec: int, require_rcon_ready: bool) -> dict:
+        """Wait until the process is alive and (optionally) RCON responds."""
+        timeout_sec = max(1, int(timeout_sec))
+        deadline = time.monotonic() + timeout_sec
+        started_at = time.monotonic()
+        checks = {
+            "process_alive": False,
+            "rcon_ready": False,
+            "last_rcon_error": None,
+            "elapsed_seconds": 0,
+            "timeout_seconds": timeout_sec,
+        }
+
+        while time.monotonic() < deadline:
+            if not self._is_server_running_sync():
+                elapsed = time.monotonic() - started_at
+                checks["elapsed_seconds"] = int(elapsed)
+                if elapsed < PROCESS_BOOT_GRACE_SEC:
+                    await asyncio.sleep(READY_POLL_INTERVAL_SEC)
+                    continue
+                self._delete_pid_file()
+                return {
+                    "success": False,
+                    "error_code": "process_exited_early",
+                    "error": "Server process exited before readiness checks completed",
+                    "ready_checks": checks,
+                }
+
+            checks["process_alive"] = True
+            checks["elapsed_seconds"] = int(time.monotonic() - started_at)
+
+            if not require_rcon_ready:
+                return {"success": True, "ready_checks": checks}
+
+            rcon_ready, rcon_status = await asyncio.to_thread(self._probe_rcon_ready_once)
+            if rcon_ready:
+                checks["rcon_ready"] = True
+                checks["last_rcon_error"] = None
+                return {"success": True, "ready_checks": checks}
+
+            checks["last_rcon_error"] = rcon_status
+            await asyncio.sleep(READY_POLL_INTERVAL_SEC)
+
+        checks["elapsed_seconds"] = int(time.monotonic() - started_at)
+        return {
+            "success": False,
+            "error_code": "rcon_not_ready_timeout",
+            "error": (
+                f"Server started but did not become ready within {timeout_sec}s "
+                f"(last_rcon_error={checks['last_rcon_error']})"
+            ),
+            "ready_checks": checks,
+        }
+
     # ------------------------------------------------------------------
     # Server control
     # ------------------------------------------------------------------
 
-    async def start_server(self) -> dict:
+    async def start_server(
+        self,
+        wait_for_ready: bool = False,
+        ready_timeout_sec: int = DEFAULT_READY_TIMEOUT_SEC,
+        require_rcon_ready: bool = True,
+    ) -> dict:
         """Start the Minecraft server as a detached process"""
         async with self.process_lock:
             if self._is_server_running_sync():
@@ -261,11 +403,11 @@ class ServerManager:
 
                 separator_entry = {
                     "time": datetime.now().strftime("%H:%M:%S"),
-                    "message": "[ServerManager] =============================================="
+                    "message": "[CORA] =============================================="
                 }
                 start_entry = {
                     "time": datetime.now().strftime("%H:%M:%S"),
-                    "message": "[ServerManager] Starting Minecraft server..."
+                    "message": "[CORA] Starting Minecraft server..."
                 }
                 self.log_buffer.append(separator_entry)
                 self.log_buffer.append(start_entry)
@@ -288,11 +430,34 @@ class ServerManager:
                 self._write_pid_file(process.pid)
                 self.log_reader_task = asyncio.create_task(self._tail_log_file())
 
-                return {
+                result = {
                     "success": True,
                     "pid": process.pid,
+                    "ready": False,
                     "message": "Server starting (detached mode)..."
                 }
+
+                if not wait_for_ready:
+                    return result
+
+                ready_result = await self._wait_for_server_ready(
+                    timeout_sec=ready_timeout_sec,
+                    require_rcon_ready=require_rcon_ready,
+                )
+                if not ready_result.get("success"):
+                    return {
+                        "success": False,
+                        "pid": process.pid,
+                        "ready": False,
+                        "error": ready_result.get("error", "Server failed readiness checks"),
+                        "error_code": ready_result.get("error_code"),
+                        "ready_checks": ready_result.get("ready_checks"),
+                    }
+
+                result["ready"] = True
+                result["message"] = "Server started and passed readiness checks"
+                result["ready_checks"] = ready_result.get("ready_checks", {})
+                return result
 
             except Exception as e:
                 return {"success": False, "error": str(e)}
@@ -309,7 +474,7 @@ class ServerManager:
                     logger.info("Server stopped, tailer exiting")
                     stop_entry = {
                         "time": datetime.now().strftime("%H:%M:%S"),
-                        "message": "[ServerManager] Server process stopped"
+                        "message": "[CORA] Server process stopped"
                     }
                     self.log_buffer.append(stop_entry)
                     for callback in self.log_subscribers:
@@ -334,7 +499,7 @@ class ServerManager:
                             self.last_log_position = 0
                             rotation_entry = {
                                 "time": datetime.now().strftime("%H:%M:%S"),
-                                "message": "[ServerManager] Log file rotated - new server session"
+                                "message": "[CORA] Log file rotated - new server session"
                             }
                             self.log_buffer.append(rotation_entry)
                             for callback in self.log_subscribers:
@@ -400,7 +565,7 @@ class ServerManager:
 
             stop_entry = {
                 "time": datetime.now().strftime("%H:%M:%S"),
-                "message": "[ServerManager] Stopping Minecraft server..."
+                "message": "[CORA] Stopping Minecraft server..."
             }
             self.log_buffer.append(stop_entry)
             for callback in self.log_subscribers:
@@ -454,32 +619,116 @@ class ServerManager:
             except Exception as e:
                 return {"success": False, "error": str(e)}
 
-    async def restart_server(self) -> dict:
+    async def restart_server(
+        self,
+        ready_timeout_sec: int = DEFAULT_READY_TIMEOUT_SEC,
+        require_rcon_ready: bool = True,
+        start_retries: int = RESTART_START_RETRIES,
+        retry_delay_sec: int = RESTART_RETRY_DELAY_SEC,
+        source: str = "unknown",
+    ) -> dict:
         """Restart the Minecraft server"""
-        restart_entry = {
-            "time": datetime.now().strftime("%H:%M:%S"),
-            "message": "[ServerManager] Restarting Minecraft server..."
-        }
-        self.log_buffer.append(restart_entry)
-        for callback in self.log_subscribers:
-            try:
-                await callback(restart_entry)
-            except Exception:
-                pass
+        async with self.restart_guard_lock:
+            now = datetime.now()
+            if self.restart_in_progress:
+                return {
+                    "success": False,
+                    "error": "Restart already in progress",
+                    "error_code": "restart_in_progress",
+                }
 
-        stop_result = await self.stop_server()
+            cooldown_remaining = self._restart_cooldown_remaining_seconds(now)
+            if cooldown_remaining > 0:
+                return {
+                    "success": False,
+                    "error": f"Restart cooldown active. Retry after {cooldown_remaining}s",
+                    "error_code": "restart_cooldown",
+                    "retry_after_seconds": cooldown_remaining,
+                    "last_restart_source": self.last_restart_source,
+                }
 
-        if not stop_result["success"] and "not running" not in stop_result.get("error", ""):
-            return {"success": False, "error": f"Failed to stop: {stop_result.get('error')}"}
+            self.restart_in_progress = True
 
-        await asyncio.sleep(3)
+        restart_success = False
+        try:
+            restart_entry = {
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "message": f"[CORA] Restarting Minecraft server... (source={source})"
+            }
+            self.log_buffer.append(restart_entry)
+            for callback in self.log_subscribers:
+                try:
+                    await callback(restart_entry)
+                except Exception:
+                    pass
 
-        recent_entries = list(self.log_buffer)[-5:] if len(self.log_buffer) > 5 else list(self.log_buffer)
-        self.log_buffer.clear()
-        for entry in recent_entries:
-            self.log_buffer.append(entry)
+            stop_result = await self.stop_server()
 
-        return await self.start_server()
+            if not stop_result["success"] and "not running" not in stop_result.get("error", ""):
+                return {"success": False, "error": f"Failed to stop: {stop_result.get('error')}"}
+
+            await asyncio.sleep(3)
+
+            recent_entries = list(self.log_buffer)[-5:] if len(self.log_buffer) > 5 else list(self.log_buffer)
+            self.log_buffer.clear()
+            for entry in recent_entries:
+                self.log_buffer.append(entry)
+
+            max_attempts = max(1, int(start_retries) + 1)
+            delay_sec = max(0, int(retry_delay_sec))
+            last_start_result = None
+
+            for attempt in range(1, max_attempts + 1):
+                start_result = await self.start_server(
+                    wait_for_ready=True,
+                    ready_timeout_sec=ready_timeout_sec,
+                    require_rcon_ready=require_rcon_ready,
+                )
+                start_result["restart_start_attempt"] = attempt
+                last_start_result = start_result
+
+                if start_result.get("success"):
+                    if attempt > 1:
+                        start_result["message"] = (
+                            f"{start_result.get('message', 'Server restart completed')} "
+                            f"(start retry {attempt - 1})"
+                        )
+                    restart_success = True
+                    return start_result
+
+                error_code = start_result.get("error_code")
+                retryable = error_code == "process_exited_early"
+                if attempt < max_attempts and retryable:
+                    logger.warning(
+                        "Restart start attempt %s/%s failed (%s), retrying in %ss",
+                        attempt,
+                        max_attempts,
+                        start_result.get("error", "unknown"),
+                        delay_sec,
+                    )
+                    if delay_sec > 0:
+                        await asyncio.sleep(delay_sec)
+                    continue
+
+                break
+
+            assert last_start_result is not None
+            return {
+                "success": False,
+                "error": (
+                    f"Failed to start after {last_start_result.get('restart_start_attempt', 1)} "
+                    f"attempt(s): {last_start_result.get('error', 'Unknown error')}"
+                ),
+                "error_code": last_start_result.get("error_code"),
+                "ready_checks": last_start_result.get("ready_checks"),
+                "restart_start_attempt": last_start_result.get("restart_start_attempt", 1),
+            }
+        finally:
+            async with self.restart_guard_lock:
+                self.restart_in_progress = False
+                if restart_success:
+                    self.last_restart_completed_at = datetime.now()
+                    self.last_restart_source = source
 
     async def send_command(self, command: str) -> dict:
         """Send a command to the server via RCON"""
@@ -505,10 +754,31 @@ class ServerManager:
     def get_server_status(self) -> ServerStatus:
         """Get comprehensive server status (with RCON caching to prevent spam)"""
         status = ServerStatus()
-        status.running = self._is_server_running_sync()
+        rcon_config = get_rcon_config()
+        process_running, pid, stale_pid_detected = self._get_process_snapshot_sync()
+        status.running = process_running  # Backwards-compatible alias
+        status.process_running = process_running
+        status.pid = pid
+        status.game_port_listening = self._is_port_listening(25565)
+        status.rcon_port_listening = (
+            self._is_port_listening(rcon_config.port) if rcon_config.enabled else False
+        )
+        status.healthy = status.process_running and status.game_port_listening
 
-        if status.running:
-            status.pid = self._get_server_pid_sync()
+        if status.healthy:
+            status.state_reason = "ok"
+        elif stale_pid_detected:
+            status.state_reason = "stale_pid"
+        elif status.process_running and not status.game_port_listening:
+            status.state_reason = "process_no_port"
+        elif not status.process_running and status.game_port_listening:
+            status.state_reason = "port_busy_no_process"
+        elif status.process_running:
+            status.state_reason = "starting"
+        else:
+            status.state_reason = "stopped"
+
+        if status.process_running:
 
             now = time.time()
             cache = self.status_cache
@@ -521,7 +791,6 @@ class ServerManager:
             elif not self.status_refreshing:
                 self.status_refreshing = True
                 try:
-                    rcon_config = get_rcon_config()
                     if rcon_config.enabled and rcon_config.password:
                         rcon = RCONClient(rcon_config.host, rcon_config.port, rcon_config.password)
                         if rcon.connect():
@@ -563,6 +832,135 @@ class ServerManager:
             status.max_players = int(props.get("max-players", "20"))
 
         return status
+
+    async def recover_server(
+        self,
+        ready_timeout_sec: int = DEFAULT_READY_TIMEOUT_SEC,
+        require_rcon_ready: bool = True,
+        start_retries: int = RESTART_START_RETRIES,
+        retry_delay_sec: int = RESTART_RETRY_DELAY_SEC,
+    ) -> dict:
+        """
+        Emergency recovery flow for "UI says running but server is unavailable":
+        force-stop (if process exists) -> stale PID cleanup -> start with readiness checks.
+        """
+        steps: list[dict] = []
+        before = self.get_server_status()
+        steps.append({
+            "step": "precheck",
+            "process_running": before.process_running,
+            "healthy": before.healthy,
+            "state_reason": before.state_reason,
+            "pid": before.pid,
+        })
+
+        if before.healthy:
+            return {
+                "success": True,
+                "message": "Server already healthy",
+                "steps": steps,
+                "server": {
+                    "running": before.running,
+                    "process_running": before.process_running,
+                    "healthy": before.healthy,
+                    "state_reason": before.state_reason,
+                    "pid": before.pid,
+                    "game_port_listening": before.game_port_listening,
+                    "rcon_port_listening": before.rcon_port_listening,
+                },
+            }
+
+        if before.process_running:
+            stop_result = await self.stop_server(force=True)
+            steps.append({
+                "step": "force_stop",
+                "success": bool(stop_result.get("success")),
+                "error": stop_result.get("error"),
+                "method": stop_result.get("method"),
+            })
+            if not stop_result.get("success") and "not running" not in str(stop_result.get("error", "")):
+                return {
+                    "success": False,
+                    "error": f"Recovery failed to stop existing process: {stop_result.get('error')}",
+                    "steps": steps,
+                }
+            await asyncio.sleep(2)
+
+        stale_pid_removed = False
+        pid_from_file = self._read_pid_file()
+        if pid_from_file and not self._is_minecraft_process(pid_from_file):
+            self._delete_pid_file()
+            stale_pid_removed = True
+        steps.append({
+            "step": "pid_cleanup",
+            "stale_pid_removed": stale_pid_removed,
+        })
+
+        start_result = await self.restart_server(
+            ready_timeout_sec=ready_timeout_sec,
+            require_rcon_ready=require_rcon_ready,
+            start_retries=start_retries,
+            retry_delay_sec=retry_delay_sec,
+        ) if before.process_running else await self.start_server(
+            wait_for_ready=True,
+            ready_timeout_sec=ready_timeout_sec,
+            require_rcon_ready=require_rcon_ready,
+        )
+
+        steps.append({
+            "step": "start",
+            "success": bool(start_result.get("success")),
+            "error": start_result.get("error"),
+            "error_code": start_result.get("error_code"),
+            "attempt": start_result.get("restart_start_attempt", 1),
+        })
+
+        if not start_result.get("success"):
+            return {
+                "success": False,
+                "error": start_result.get("error", "Recovery failed to start server"),
+                "error_code": start_result.get("error_code"),
+                "steps": steps,
+            }
+
+        after = self.get_server_status()
+        steps.append({
+            "step": "postcheck",
+            "healthy": after.healthy,
+            "state_reason": after.state_reason,
+            "process_running": after.process_running,
+        })
+
+        if not after.healthy:
+            return {
+                "success": False,
+                "error": f"Recovery start returned success, but server is not healthy ({after.state_reason})",
+                "steps": steps,
+                "server": {
+                    "running": after.running,
+                    "process_running": after.process_running,
+                    "healthy": after.healthy,
+                    "state_reason": after.state_reason,
+                    "pid": after.pid,
+                    "game_port_listening": after.game_port_listening,
+                    "rcon_port_listening": after.rcon_port_listening,
+                },
+            }
+
+        return {
+            "success": True,
+            "message": "Server recovered successfully",
+            "steps": steps,
+            "server": {
+                "running": after.running,
+                "process_running": after.process_running,
+                "healthy": after.healthy,
+                "state_reason": after.state_reason,
+                "pid": after.pid,
+                "game_port_listening": after.game_port_listening,
+                "rcon_port_listening": after.rcon_port_listening,
+            },
+        }
 
     def get_recent_logs(self, lines: int = 100, filtered: bool = True, offset: int = 0) -> list:
         """Get log entries with pagination support."""
@@ -611,7 +1009,7 @@ class ServerManager:
 
             restart_marker = {
                 "time": datetime.now().strftime("%H:%M:%S"),
-                "message": "[ServerManager] Web app restarted - reconnecting to server..."
+                "message": "[CORA] Web app restarted - reconnecting to server..."
             }
             self.log_buffer.append(restart_marker)
 
@@ -706,14 +1104,47 @@ def is_server_running() -> bool:
 def get_server_pid() -> Optional[int]:
     return _manager._get_server_pid_sync()
 
-async def start_server() -> dict:
-    return await _manager.start_server()
+async def start_server(
+    wait_for_ready: bool = False,
+    ready_timeout_sec: int = DEFAULT_READY_TIMEOUT_SEC,
+    require_rcon_ready: bool = True,
+) -> dict:
+    return await _manager.start_server(
+        wait_for_ready=wait_for_ready,
+        ready_timeout_sec=ready_timeout_sec,
+        require_rcon_ready=require_rcon_ready,
+    )
 
 async def stop_server(force: bool = False) -> dict:
     return await _manager.stop_server(force=force)
 
-async def restart_server() -> dict:
-    return await _manager.restart_server()
+async def restart_server(
+    ready_timeout_sec: int = DEFAULT_READY_TIMEOUT_SEC,
+    require_rcon_ready: bool = True,
+    start_retries: int = RESTART_START_RETRIES,
+    retry_delay_sec: int = RESTART_RETRY_DELAY_SEC,
+    source: str = "unknown",
+) -> dict:
+    return await _manager.restart_server(
+        ready_timeout_sec=ready_timeout_sec,
+        require_rcon_ready=require_rcon_ready,
+        start_retries=start_retries,
+        retry_delay_sec=retry_delay_sec,
+        source=source,
+    )
+
+async def recover_server(
+    ready_timeout_sec: int = DEFAULT_READY_TIMEOUT_SEC,
+    require_rcon_ready: bool = True,
+    start_retries: int = RESTART_START_RETRIES,
+    retry_delay_sec: int = RESTART_RETRY_DELAY_SEC,
+) -> dict:
+    return await _manager.recover_server(
+        ready_timeout_sec=ready_timeout_sec,
+        require_rcon_ready=require_rcon_ready,
+        start_retries=start_retries,
+        retry_delay_sec=retry_delay_sec,
+    )
 
 async def send_command(command: str) -> dict:
     return await _manager.send_command(command)

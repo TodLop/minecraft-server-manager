@@ -29,6 +29,9 @@ from app.services import minecraft_server
 # Configuration file path
 CONFIG_FILE = DATA_DIR / "reboot_scheduler_config.json"
 LOG_FILE = DATA_DIR / "reboot_scheduler_log.json"
+RESTART_READY_TIMEOUT_SEC = 120
+RESTART_START_RETRIES = 2
+RESTART_RETRY_DELAY_SEC = 3
 
 
 class SchedulerState(str, Enum):
@@ -57,6 +60,9 @@ class SchedulerConfig:
     # Countdown settings
     countdown_minutes: int = 5  # Warning time before restart
     warning_intervals: List[int] = field(default_factory=lambda: [5, 3, 1])  # Minutes to warn at
+
+    # Post-restart grace period
+    restart_grace_minutes: int = 30  # Skip auto-restart triggers for this long after a restart
 
     # CoreProtect maintenance
     coreprotect_purge_enabled: bool = True
@@ -141,6 +147,15 @@ class RebootScheduler:
         self._countdown_start: Optional[datetime] = None
         self._countdown_target: Optional[datetime] = None
         self._warnings_sent: set = set()  # Track which warnings have been sent
+        self._restart_token_seq: int = 0
+        self._active_restart_token: Optional[int] = None
+
+        # Post-restart grace period tracking
+        self._last_restart_completed_at: Optional[datetime] = None
+
+        # Zombie process (process_no_port) auto-recovery
+        self._degraded_since: Optional[datetime] = None
+        self._DEGRADED_AUTO_RECOVER_SECONDS: int = 180  # 3 minutes
 
         # Background task
         self._monitor_task: Optional[asyncio.Task] = None
@@ -213,6 +228,18 @@ class RebootScheduler:
             hours = seconds // 3600
             minutes = (seconds % 3600) // 60
             return f"{hours}h {minutes}m"
+
+    def _new_restart_token(self) -> int:
+        """Create a new token to invalidate stale restart/countdown operations."""
+        self._restart_token_seq += 1
+        self._active_restart_token = self._restart_token_seq
+        return self._restart_token_seq
+
+    def _is_active_restart_token(self, token: Optional[int]) -> bool:
+        return token is not None and token == self._active_restart_token
+
+    def _clear_restart_token(self):
+        self._active_restart_token = None
 
     async def start(self):
         """Start the scheduler background task"""
@@ -317,6 +344,36 @@ class RebootScheduler:
         self.status.server_running = server_status.running
         self.status.players_online = server_status.players_online if server_status.running else 0
 
+        # ----- Zombie process auto-recovery (process_no_port) -----
+        if server_status.state_reason == "process_no_port":
+            if self._degraded_since is None:
+                self._degraded_since = now
+                self._add_log("degraded_detected", "info",
+                              "Server entered process_no_port state, monitoring...")
+            elif (now - self._degraded_since).total_seconds() >= self._DEGRADED_AUTO_RECOVER_SECONDS:
+                elapsed = int((now - self._degraded_since).total_seconds())
+                self._add_log("auto_recover", "info",
+                              f"Server stuck in process_no_port for {elapsed}s, auto-recovering")
+                try:
+                    result = await minecraft_server.recover_server()
+                    if result.get("success"):
+                        self._add_log("auto_recover", "success", "Auto-recovery completed successfully")
+                        self._last_restart_completed_at = datetime.now()
+                    else:
+                        self._add_log("auto_recover", "failed",
+                                      f"Auto-recovery failed: {result.get('error')}")
+                except Exception as e:
+                    self._add_log("auto_recover", "failed", f"Auto-recovery exception: {e}")
+                self._degraded_since = None
+                return
+            # Still waiting for auto-recover threshold
+            remaining = self._DEGRADED_AUTO_RECOVER_SECONDS - int((now - self._degraded_since).total_seconds())
+            self.status.state = SchedulerState.MONITORING
+            self.status.next_action = f"Server degraded, auto-recover in {self._format_duration(remaining)}"
+            return
+        else:
+            self._degraded_since = None
+
         # Check CoreProtect purge (runs independently of reboot scheduler)
         await self._check_coreprotect_purge()
 
@@ -343,10 +400,38 @@ class RebootScheduler:
             self._reset_tracking()
             return
 
-        # Track server start time
+        # ----- Post-restart grace period -----
+        if self._last_restart_completed_at:
+            grace_elapsed = (now - self._last_restart_completed_at).total_seconds()
+            grace_seconds = self.config.restart_grace_minutes * 60
+            if grace_elapsed < grace_seconds:
+                self.status.state = SchedulerState.MONITORING
+                remaining = int(grace_seconds - grace_elapsed)
+                self.status.next_action = f"Post-restart grace period ({self._format_duration(remaining)} remaining)"
+                return
+            else:
+                # Grace period expired, clear it
+                self._last_restart_completed_at = None
+
+        # Track server start time (use OS process start time for accuracy)
         if self._server_start_time is None:
-            self._server_start_time = now
-            self._add_log("server_detected", "info", "Server running detected, starting tracking")
+            # Try to get actual process start time from the OS
+            # This survives run.py restarts since it reads from the Java process itself
+            server_status_obj = minecraft_server.get_server_status()
+            pid = server_status_obj.pid
+            os_start_time = None
+            if pid:
+                os_start_time = minecraft_server._manager._get_process_start_time(pid)
+
+            if os_start_time:
+                self._server_start_time = os_start_time
+                uptime_so_far = self._format_duration(int((now - os_start_time).total_seconds()))
+                self._add_log("server_detected", "info",
+                              f"Server running detected (OS start: {os_start_time.strftime('%H:%M:%S')}, uptime: {uptime_so_far})")
+            else:
+                self._server_start_time = now
+                self._add_log("server_detected", "info",
+                              "Server running detected, starting tracking (OS start time unavailable)")
 
         # Calculate uptime
         uptime = now - self._server_start_time
@@ -402,6 +487,7 @@ class RebootScheduler:
     async def _start_countdown(self, reason: str, details: str):
         """Start countdown for restart"""
         now = datetime.now()
+        token = self._new_restart_token()
 
         if reason == "empty":
             self.status.state = SchedulerState.COUNTDOWN_EMPTY
@@ -411,7 +497,7 @@ class RebootScheduler:
             self._add_log("restart_triggered", "info",
                          f"Empty server restart triggered: {details}",
                          trigger_reason=reason)
-            await self._execute_restart(reason)
+            await self._execute_restart(reason, token=token)
         else:
             self.status.state = SchedulerState.COUNTDOWN_UPTIME
             self.status.countdown_reason = "Uptime threshold reached"
@@ -426,9 +512,18 @@ class RebootScheduler:
 
             # Send initial warning
             await self._send_warning(self.config.countdown_minutes)
+            if self.config.countdown_minutes in self.config.warning_intervals:
+                self._warnings_sent.add(self.config.countdown_minutes)
 
     async def _handle_countdown(self, now: datetime):
         """Handle countdown state - send warnings and execute restart"""
+        token = self._active_restart_token
+        if token is None:
+            self._add_log("countdown_skipped", "info", "Skipping stale countdown (token missing)")
+            self._reset_tracking()
+            self.status.state = SchedulerState.MONITORING
+            return
+
         if self._countdown_target is None:
             self.status.state = SchedulerState.MONITORING
             return
@@ -440,7 +535,8 @@ class RebootScheduler:
         # Check if countdown complete
         if remaining <= 0:
             await self._execute_restart(
-                "empty" if self.status.state == SchedulerState.COUNTDOWN_EMPTY else "uptime"
+                "empty" if self.status.state == SchedulerState.COUNTDOWN_EMPTY else "uptime",
+                token=token,
             )
             return
 
@@ -485,8 +581,14 @@ class RebootScheduler:
         except Exception as e:
             self._add_log("warning_sent", "failed", f"Failed to send warning: {e}")
 
-    async def _execute_restart(self, reason: str):
+    async def _execute_restart(self, reason: str, token: Optional[int] = None):
         """Execute the actual server restart"""
+        if token is None:
+            token = self._active_restart_token
+        if not self._is_active_restart_token(token):
+            self._add_log("restart_skipped", "info", f"Skipping stale restart request (reason: {reason})")
+            return
+
         self.status.state = SchedulerState.RESTARTING
         players = self.status.players_online
 
@@ -501,31 +603,65 @@ class RebootScheduler:
                 await minecraft_server.send_command('say §c[Auto-Restart] §fRestarting now! See you soon!')
                 await asyncio.sleep(2)  # Give players time to see the message
 
+            if not self._is_active_restart_token(token):
+                self._add_log("restart_skipped", "info", f"Restart aborted by newer request (reason: {reason})")
+                self.status.state = SchedulerState.MONITORING
+                return
+
             # Execute restart
-            result = await minecraft_server.restart_server()
+            restart_source = "manual_scheduler" if reason == "manual" else "auto_scheduler"
+            result = await minecraft_server.restart_server(
+                ready_timeout_sec=RESTART_READY_TIMEOUT_SEC,
+                require_rcon_ready=True,
+                start_retries=RESTART_START_RETRIES,
+                retry_delay_sec=RESTART_RETRY_DELAY_SEC,
+                source=restart_source,
+            )
 
             if result.get("success"):
+                attempts = result.get("restart_start_attempt", 1)
+                retry_note = f" (start retry {attempts - 1})" if attempts and attempts > 1 else ""
                 self._add_log("restart_completed", "success",
-                             f"Server restart completed successfully (was {reason})",
+                             f"Server restart completed successfully (was {reason}){retry_note}",
                              trigger_reason=reason,
                              players_affected=players)
 
-                # Reset tracking
+                # Reset tracking and start grace period
                 self._reset_tracking()
                 self._server_start_time = datetime.now()  # Will be accurate after server starts
+                self._last_restart_completed_at = datetime.now()  # Start grace period
 
             else:
                 error = result.get("error", "Unknown error")
-                self._add_log("restart_failed", "failed",
-                             f"Restart failed: {error}",
-                             trigger_reason=reason,
-                             players_affected=players)
-                self.status.state = SchedulerState.ERROR
-                self.status.error_message = error
+                error_code = result.get("error_code")
+                if error_code in {"restart_in_progress", "restart_cooldown"}:
+                    retry_after = result.get("retry_after_seconds")
+                    retry_hint = f" (retry after {retry_after}s)" if retry_after else ""
+                    self._add_log(
+                        "restart_skipped",
+                        "info",
+                        f"Restart skipped: {error}{retry_hint}",
+                        trigger_reason=reason,
+                        players_affected=players,
+                    )
+                    self._reset_tracking()
+                    self.status.state = SchedulerState.MONITORING
+                    self.status.error_message = None
+                else:
+                    if error_code:
+                        error = f"{error} [{error_code}]"
+                    self._add_log("restart_failed", "failed",
+                                 f"Restart failed: {error}",
+                                 trigger_reason=reason,
+                                 players_affected=players)
+                    self._reset_tracking()
+                    self.status.state = SchedulerState.ERROR
+                    self.status.error_message = error
 
         except Exception as e:
             self._add_log("restart_failed", "failed", f"Restart exception: {e}",
                          trigger_reason=reason)
+            self._reset_tracking()
             self.status.state = SchedulerState.ERROR
             self.status.error_message = str(e)
 
@@ -536,6 +672,7 @@ class RebootScheduler:
         self._countdown_start = None
         self._countdown_target = None
         self._warnings_sent = set()
+        self._clear_restart_token()
         self.status.countdown_reason = None
         self.status.countdown_remaining_seconds = 0
         self.status.countdown_formatted = ""
@@ -561,7 +698,8 @@ class RebootScheduler:
             return {"success": True, "message": f"Restart countdown started ({self.config.countdown_minutes} minutes)"}
         else:
             # Immediate restart for empty server
-            await self._execute_restart("manual")
+            token = self._new_restart_token()
+            await self._execute_restart("manual", token=token)
             return {"success": True, "message": "Restart executed (no players online)"}
 
     def cancel_countdown(self) -> dict:
@@ -576,6 +714,7 @@ class RebootScheduler:
         self._countdown_start = None
         self._countdown_target = None
         self._warnings_sent = set()
+        self._clear_restart_token()
         self.status.state = SchedulerState.MONITORING
         self.status.countdown_reason = None
         self.status.countdown_remaining_seconds = 0

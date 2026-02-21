@@ -1,9 +1,288 @@
+:root {
+    --no-surface-base: #05070c;
+    --no-surface-elevated: rgba(12, 16, 28, 0.82);
+    --no-surface-muted: rgba(18, 24, 38, 0.72);
+    --no-border-subtle: rgba(148, 163, 184, 0.24);
+    --no-border-strong: rgba(148, 163, 184, 0.38);
+    --no-text-high: #f1f5f9;
+    --no-text-mid: #d5dfec;
+    --no-text-low: #9fb0c7;
+    --no-text-faint: #7f90a8;
+    --no-focus: rgba(56, 189, 248, 0.52);
+}
+
+html.pref-theme-dark {
+    --no-surface-base: #05070c;
+    --no-surface-elevated: rgba(12, 16, 28, 0.82);
+    --no-surface-muted: rgba(18, 24, 38, 0.72);
+    --no-border-subtle: rgba(148, 163, 184, 0.24);
+    --no-border-strong: rgba(148, 163, 184, 0.38);
+    --no-text-high: #f1f5f9;
+    --no-text-mid: #d5dfec;
+    --no-text-low: #9fb0c7;
+    --no-text-faint: #7f90a8;
+    --no-focus: rgba(56, 189, 248, 0.52);
+}
+
+html.pref-theme-light {
+    --no-surface-base: #f4f7fc;
+    --no-surface-elevated: rgba(255, 255, 255, 0.95);
+    --no-surface-muted: rgba(241, 245, 249, 0.94);
+    --no-border-subtle: rgba(100, 116, 139, 0.28);
+    --no-border-strong: rgba(71, 85, 105, 0.4);
+    --no-text-high: #0f172a;
+    --no-text-mid: #1e293b;
+    --no-text-low: #334155;
+    --no-text-faint: #475569;
+    --no-focus: rgba(37, 99, 235, 0.45);
+}
+
+html[data-font-scale='sm'] {
+    font-size: 14px;
+}
+
+html[data-font-scale='md'] {
+    font-size: 16px;
+}
+
+html[data-font-scale='lg'] {
+    font-size: 18px;
+}
+
+html[data-reduced-motion='true'] *,
+html[data-reduced-motion='true'] *::before,
+html[data-reduced-motion='true'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+}
+
+html.pref-theme-dark[data-high-contrast='true'] [x-data="minecraftAdmin()"] .text-slate-500,
+html.pref-theme-dark[data-high-contrast='true'] [x-data="staffPanel()"] .text-slate-500 {
+    color: #d8e6ff !important;
+}
+
+html.pref-theme-dark[data-high-contrast='true'] [x-data="minecraftAdmin()"] .text-slate-400,
+html.pref-theme-dark[data-high-contrast='true'] [x-data="staffPanel()"] .text-slate-400 {
+    color: #e8f1ff !important;
+}
+
+html.pref-theme-light[data-high-contrast='true'] [x-data="minecraftAdmin()"] .text-slate-500,
+html.pref-theme-light[data-high-contrast='true'] [x-data="staffPanel()"] .text-slate-500 {
+    color: #1e293b !important;
+}
+
+html.pref-theme-light[data-high-contrast='true'] [x-data="minecraftAdmin()"] .text-slate-400,
+html.pref-theme-light[data-high-contrast='true'] [x-data="staffPanel()"] .text-slate-400 {
+    color: #0f172a !important;
+}
+
+html.pref-theme-light body {
+    color: var(--no-text-high);
+    background:
+        radial-gradient(circle at 20% -20%, rgba(14, 116, 144, 0.14), transparent 42%),
+        radial-gradient(circle at 80% -10%, rgba(99, 102, 241, 0.12), transparent 42%),
+        var(--no-surface-base) !important;
+}
+
+html.pref-theme-light .scanline {
+    opacity: 0.015 !important;
+}
+
+html.pref-theme-light .glass-card,
+html.pref-theme-light .glass-panel {
+    background: var(--no-surface-elevated) !important;
+    border-color: var(--no-border-subtle) !important;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08) !important;
+}
+
+html.pref-theme-light [x-data="minecraftAdmin()"] [class*="bg-[#050505]"],
+html.pref-theme-light [x-data="minecraftAdmin()"] [class*="bg-[#0a0a0a]"],
+html.pref-theme-light [x-data="minecraftAdmin()"] [class*="bg-slate-9"],
+html.pref-theme-light [x-data="minecraftAdmin()"] [class*="bg-slate-8"],
+html.pref-theme-light [x-data="minecraftAdmin()"] [class*="bg-slate-7"],
+html.pref-theme-light [x-data="staffPanel()"] [class*="bg-[#050505]"],
+html.pref-theme-light [x-data="staffPanel()"] [class*="bg-[#0a0a0a]"],
+html.pref-theme-light [x-data="staffPanel()"] [class*="bg-slate-9"],
+html.pref-theme-light [x-data="staffPanel()"] [class*="bg-slate-8"],
+html.pref-theme-light [x-data="staffPanel()"] [class*="bg-slate-7"] {
+    background-color: var(--no-surface-muted) !important;
+}
+
+html.pref-theme-light [x-data="minecraftAdmin()"] [class*="border-slate-"],
+html.pref-theme-light [x-data="staffPanel()"] [class*="border-slate-"] {
+    border-color: var(--no-border-subtle) !important;
+}
+
+html.pref-theme-light .text-white {
+    color: var(--no-text-high) !important;
+}
+
+html.pref-theme-light .text-slate-300 {
+    color: var(--no-text-mid) !important;
+}
+
+html.pref-theme-light .text-slate-200 {
+    color: var(--no-text-high) !important;
+}
+
+html.pref-theme-light .text-slate-600 {
+    color: var(--no-text-faint) !important;
+}
+
+html.pref-theme-light .text-slate-500 {
+    color: var(--no-text-low) !important;
+}
+
+html.pref-theme-light .text-slate-400 {
+    color: var(--no-text-mid) !important;
+}
+
+html.pref-theme-light .tab-btn {
+    color: var(--no-text-low);
+    background: rgba(226, 232, 240, 0.92);
+    border-color: var(--no-border-subtle);
+}
+
+html.pref-theme-light .tab-btn.active {
+    background: rgba(99, 102, 241, 0.16);
+    border-color: rgba(99, 102, 241, 0.42);
+    color: #312e81;
+}
+
+html.pref-theme-light .input-field {
+    background: rgba(255, 255, 255, 0.94);
+    border-color: var(--no-border-strong);
+    color: var(--no-text-high);
+}
+
+html.pref-theme-light .input-field::placeholder {
+    color: var(--no-text-faint);
+}
+
+html.pref-theme-light .input-field:focus {
+    border-color: rgba(37, 99, 235, 0.55);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+html.pref-theme-light .btn-primary.text-white,
+html.pref-theme-light .btn-warning.text-white,
+html.pref-theme-light .btn-danger.text-white,
+html.pref-theme-light .btn-secondary.text-white,
+html.pref-theme-light .bg-red-500.text-white,
+html.pref-theme-light .bg-green-500.text-white,
+html.pref-theme-light .bg-blue-500.text-white,
+html.pref-theme-light .bg-blue-600.text-white,
+html.pref-theme-light .bg-purple-500.text-white,
+html.pref-theme-light .bg-purple-600.text-white,
+html.pref-theme-light .bg-emerald-600.text-white,
+html.pref-theme-light .bg-red-400.text-white,
+html.pref-theme-light .level-suspicious,
+html.pref-theme-light .level-high-priority,
+html.pref-theme-light .level-confirmed-cheater {
+    color: #f8fafc !important;
+}
+
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-cyan-200,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-cyan-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-cyan-400,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-cyan-500,
+html.pref-theme-light [x-data="staffPanel()"] .text-cyan-200,
+html.pref-theme-light [x-data="staffPanel()"] .text-cyan-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-cyan-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-cyan-500 {
+    color: #0e7490 !important;
+}
+
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-green-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-green-400,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-emerald-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-green-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-green-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-emerald-400 {
+    color: #166534 !important;
+}
+
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-red-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-red-400,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-red-600,
+html.pref-theme-light [x-data="staffPanel()"] .text-red-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-red-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-red-600 {
+    color: #b91c1c !important;
+}
+
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-amber-200,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-amber-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-amber-400,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-orange-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-orange-400,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-yellow-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-yellow-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-amber-200,
+html.pref-theme-light [x-data="staffPanel()"] .text-amber-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-amber-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-orange-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-orange-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-yellow-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-yellow-400 {
+    color: #9a3412 !important;
+}
+
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-blue-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-blue-400,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-indigo-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-indigo-400,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-purple-200,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-purple-300,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-purple-400,
+html.pref-theme-light [x-data="minecraftAdmin()"] .text-purple-500,
+html.pref-theme-light [x-data="staffPanel()"] .text-blue-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-blue-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-indigo-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-indigo-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-purple-200,
+html.pref-theme-light [x-data="staffPanel()"] .text-purple-300,
+html.pref-theme-light [x-data="staffPanel()"] .text-purple-400,
+html.pref-theme-light [x-data="staffPanel()"] .text-purple-500 {
+    color: #4338ca !important;
+}
+
+html.pref-theme-light .player-card:hover {
+    background: rgba(148, 163, 184, 0.18);
+}
+
+html.pref-theme-light .log-entry {
+    border-bottom-color: rgba(148, 163, 184, 0.28);
+}
+
+html.pref-theme-light .log-entry:hover {
+    background: rgba(148, 163, 184, 0.16);
+}
+
+html.pref-theme-light .comment-card:hover {
+    background: rgba(148, 163, 184, 0.14);
+}
+
+html.pref-theme-light .command-output {
+    background: rgba(241, 245, 249, 0.95);
+    border: 1px solid rgba(100, 116, 139, 0.3);
+    color: var(--no-text-high);
+}
+
+html.pref-theme-light .config-viewer pre {
+    background: rgba(241, 245, 249, 0.95) !important;
+    border: 1px solid rgba(100, 116, 139, 0.3);
+    color: var(--no-text-high);
+}
+
 .glass-card {
-    background: rgba(10, 10, 15, 0.6);
+    background: linear-gradient(160deg, rgba(10, 14, 24, 0.86) 0%, rgba(8, 11, 20, 0.8) 100%);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(168, 85, 247, 0.15);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    box-shadow: 0 12px 36px rgba(2, 6, 23, 0.45);
 }
 
 .glass-card-hover {
@@ -11,8 +290,8 @@
 }
 
 .glass-card-hover:hover {
-    border-color: rgba(168, 85, 247, 0.3);
-    box-shadow: 0 8px 40px rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.42);
+    box-shadow: 0 16px 44px rgba(76, 29, 149, 0.25);
 }
 
 .glass-card-float-hover:hover {
@@ -35,17 +314,19 @@
 
 .tab-btn {
     transition: all 0.2s ease;
+    color: var(--no-text-mid);
+    background: var(--no-surface-muted);
 }
 
 .tab-btn.active {
-    background: rgba(168, 85, 247, 0.2);
-    border-color: rgba(168, 85, 247, 0.5);
-    color: #d8b4fe;
+    background: rgba(168, 85, 247, 0.3);
+    border-color: rgba(192, 132, 252, 0.62);
+    color: #f3e8ff;
 }
 
 .btn-primary {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.34);
     transition: all 0.2s ease;
 }
 
@@ -56,19 +337,19 @@
 
 .btn-warning {
     background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+    box-shadow: 0 6px 18px rgba(245, 158, 11, 0.34);
     transition: all 0.2s ease;
 }
 
 .btn-danger {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    box-shadow: 0 6px 18px rgba(239, 68, 68, 0.36);
     transition: all 0.2s ease;
 }
 
 .btn-secondary {
     background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
-    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
+    box-shadow: 0 6px 18px rgba(168, 85, 247, 0.34);
     transition: all 0.2s ease;
 }
 
@@ -122,14 +403,14 @@
 }
 
 .input-field {
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(71, 85, 105, 0.5);
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(100, 116, 139, 0.56);
     transition: all 0.2s ease;
 }
 
 .input-field:focus {
-    border-color: rgba(168, 85, 247, 0.5);
-    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
+    border-color: rgba(59, 130, 246, 0.7);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
     outline: none;
 }
 
@@ -231,6 +512,59 @@
     height: 70%;
     background: linear-gradient(180deg, #a855f7, #c084fc);
     border-radius: 2px;
+}
+
+/* Global focus state for keyboard users */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+    outline: 2px solid var(--no-focus);
+    outline-offset: 2px;
+}
+
+/* Improve critical readability without changing layout */
+[x-data="minecraftAdmin()"] .text-slate-400,
+[x-data="staffPanel()"] .text-slate-400 {
+    color: var(--no-text-mid) !important;
+}
+
+[x-data="minecraftAdmin()"] .text-slate-300,
+[x-data="staffPanel()"] .text-slate-300 {
+    color: var(--no-text-mid) !important;
+}
+
+[x-data="minecraftAdmin()"] .text-slate-200,
+[x-data="staffPanel()"] .text-slate-200 {
+    color: var(--no-text-high) !important;
+}
+
+[x-data="minecraftAdmin()"] .text-slate-500,
+[x-data="staffPanel()"] .text-slate-500 {
+    color: var(--no-text-low) !important;
+}
+
+[x-data="minecraftAdmin()"] .text-slate-600,
+[x-data="staffPanel()"] .text-slate-600 {
+    color: var(--no-text-faint) !important;
+}
+
+/* Guided operation state emphasis */
+.operation-card[data-op-state='running'] {
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 10px 30px rgba(59, 130, 246, 0.14);
+}
+
+.operation-card[data-op-state='succeeded'] {
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.14);
+}
+
+.operation-card[data-op-state='failed'] {
+    border-color: rgba(239, 68, 68, 0.52);
+    box-shadow: 0 10px 34px rgba(127, 29, 29, 0.28);
 }
 
 .comment-card {

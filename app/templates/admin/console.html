@@ -459,6 +459,14 @@
                             message: '(Waiting for async response... check logs below)',
                             isCommandResponse: true
                         });
+                    } else {
+                        const errorMessage = data.error || 'Command failed';
+                        this.logs.push({
+                            time: '',
+                            message: `[ERROR] ${errorMessage}`,
+                            isCommandResponse: true
+                        });
+                        this.showToast(errorMessage, 'error');
                     }
 
                     this.scrollToBottom();

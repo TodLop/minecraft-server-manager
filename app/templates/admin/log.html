@@ -45,6 +45,13 @@
                     :class="autoScroll ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'">
                     Auto-scroll: <span x-text="autoScroll ? 'ON' : 'OFF'"></span>
                 </button>
+                <!-- UltraCosmetics noise toggle -->
+                <button @click="toggleUltraCosmeticsFloatErrorFilter()"
+                    class="text-xs px-2 py-1 rounded"
+                    :class="hideUltraCosmeticsFloatError ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' : 'bg-slate-700 text-slate-300 border border-slate-600/40'">
+                    Hide UltraCosmetics Float Error:
+                    <span x-text="hideUltraCosmeticsFloatError ? 'ON' : 'OFF'"></span>
+                </button>
                 <!-- Clear -->
                 <button @click="clearLogs()" class="text-xs px-2 py-1 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-300 rounded">
                     Clear
@@ -92,6 +99,8 @@
             logFiles: [],
             selectedLogFile: '',
             loadingFile: false,
+            hideUltraCosmeticsFloatError: false,
+            ultraFloatBlockActive: false,
 
             init() {
                 this.container = document.getElementById('log-container');
@@ -113,16 +122,79 @@
                     // Let's implement a custom render queue or just render chunks.
                 });
             },
+
+            toggleUltraCosmeticsFloatErrorFilter() {
+                this.hideUltraCosmeticsFloatError = !this.hideUltraCosmeticsFloatError;
+                this.renderAllLogs();
+            },
+
+            isRconNoise(message) {
+                return !!message && (
+                    message.includes('RCON Client') ||
+                    message.includes('RCON Listener') ||
+                    message.includes('Thread RCON') ||
+                    message.includes('Rcon issued server command')
+                );
+            },
+
+            isTimestampedLogLine(message) {
+                return !!message && /^\[\d{2}:\d{2}:\d{2}\]/.test(message);
+            },
+
+            isUltraCosmeticsFloatHeader(message) {
+                return !!message &&
+                    message.includes('[UltraCosmetics]') &&
+                    message.includes('generated an exception') &&
+                    message.includes('Task #');
+            },
+
+            isUltraCosmeticsFloatException(message) {
+                return !!message && message.includes('java.lang.IllegalArgumentException: missing required data class java.lang.Float');
+            },
+
+            isUltraCosmeticsBlockEnd(message) {
+                return !!message && message.includes('at java.base/java.lang.Thread.run(');
+            },
+
+            shouldHideLog(log) {
+                const message = (log && typeof log.message === 'string') ? log.message : '';
+
+                if (this.isRconNoise(message)) {
+                    return true;
+                }
+
+                if (!this.hideUltraCosmeticsFloatError) {
+                    this.ultraFloatBlockActive = false;
+                    return false;
+                }
+
+                // If a new timestamped entry starts and it's not the same UltraCosmetics header,
+                // close any dangling stack-trace block before evaluating the line.
+                if (this.ultraFloatBlockActive && this.isTimestampedLogLine(message) && !this.isUltraCosmeticsFloatHeader(message)) {
+                    this.ultraFloatBlockActive = false;
+                }
+
+                if (this.ultraFloatBlockActive) {
+                    if (this.isUltraCosmeticsBlockEnd(message)) {
+                        this.ultraFloatBlockActive = false;
+                    }
+                    return true;
+                }
+
+                if (this.isUltraCosmeticsFloatHeader(message) || this.isUltraCosmeticsFloatException(message)) {
+                    this.ultraFloatBlockActive = true;
+                    if (this.isUltraCosmeticsBlockEnd(message)) {
+                        this.ultraFloatBlockActive = false;
+                    }
+                    return true;
+                }
+
+                return false;
+            },
             
             // Custom method to add log to DOM directly (bypassing Alpine x-for overhead)
             appendLogToDom(log) {
-                // Filter out RCON noise
-                if (log.message && (
-                    log.message.includes('RCON Client') || 
-                    log.message.includes('RCON Listener') ||
-                    log.message.includes('Thread RCON') ||
-                    log.message.includes('Rcon issued server command')
-                )) return;
+                if (this.shouldHideLog(log)) return;
                 
                 const div = document.createElement('div');
                 div.className = "whitespace-pre-wrap break-all";
@@ -158,16 +230,11 @@
             // Render entire array (for full log load)
             renderAllLogs() {
                 this.container.innerHTML = '';
+                this.ultraFloatBlockActive = false;
                 const fragment = document.createDocumentFragment();
                 
                 this.logs.forEach(log => {
-                    // Filter out RCON noise
-                    if (log.message && (
-                        log.message.includes('RCON Client') || 
-                        log.message.includes('RCON Listener') ||
-                        log.message.includes('Thread RCON') ||
-                        log.message.includes('Rcon issued server command')
-                    )) return;
+                    if (this.shouldHideLog(log)) return;
                     
                     const div = document.createElement('div');
                     div.className = "whitespace-pre-wrap break-all";
@@ -213,11 +280,7 @@
                     if (data.type === 'heartbeat') return;
 
                     // Filter out RCON noise
-                    if (data.message && (
-                        data.message.includes('RCON Client') || 
-                        data.message.includes('RCON Listener') ||
-                        data.message.includes('Thread RCON')
-                    )) return;
+                    if (this.isRconNoise(data.message)) return;
 
                     // Deduplication
                     const logHash = `${data.time}:${data.message}`;
@@ -277,6 +340,7 @@
                 this.logs = [];
                 this.lastLogHash = '';
                 this.selectedLogFile = '';
+                this.ultraFloatBlockActive = false;
                 if (this.container) this.container.innerHTML = '';
             },
 

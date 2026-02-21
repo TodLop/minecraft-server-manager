@@ -112,9 +112,9 @@
 
                 <template x-if="!editingSummary">
                     <div>
-                        <p class="text-slate-300 mb-4" x-text="doc.summary || 'No summary yet'"></p>
+                        <p class="text-slate-300 mb-4" x-text="doc.summary || doc.summary_en || 'No summary yet'"></p>
                         <div class="prose prose-invert prose-sm max-w-none">
-                            <p class="text-slate-400 whitespace-pre-wrap" x-text="doc.description || 'No description available.'"></p>
+                            <p class="text-slate-400 whitespace-pre-wrap" x-text="doc.description || doc.description_en || 'No description available.'"></p>
                         </div>
                     </div>
                 </template>
@@ -460,9 +460,9 @@
 <script>
 function pluginDetail() {
     return {
-        pluginId: '{{ plugin_id }}',
+        pluginId: {{ plugin_id | tojson }},
         isAdmin: {{ 'true' if is_admin else 'false' }},
-        userEmail: '{{ user_info.email }}',
+        userEmail: {{ (user_info.email if user_info and user_info.email else '') | tojson }},
         activeTab: 'overview',
 
         doc: {{ doc | tojson }},
@@ -476,8 +476,8 @@ function pluginDetail() {
 
         // Edit forms
         editForm: {
-            summary: '{{ doc.summary | e }}',
-            description: '{{ doc.description | e }}'
+            summary: {{ (doc.summary or doc.summary_en or '') | tojson }},
+            description: {{ (doc.description or doc.description_en or '') | tojson }}
         },
 
         newCommand: { command: '', description: '', permission: '', usage: '' },
@@ -486,7 +486,7 @@ function pluginDetail() {
 
         // Config viewer
         configFiles: {{ config_files | tojson }},
-        selectedConfig: '{{ config_files[0].name if config_files else "config.yml" }}',
+        selectedConfig: {{ (config_files[0].name if config_files else "config.yml") | tojson }},
         configContent: '',
         configSize: 0,
         configError: '',

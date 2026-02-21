@@ -37,7 +37,7 @@
                         </svg>
                         Console
                     </a>
-                    <a href="#" title="Disabled in OSS build"
+                    <a href="/minecraft/taskboard"
                         class="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg border border-purple-500/30 transition-all flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -45,7 +45,7 @@
                         </svg>
                         Task Board
                     </a>
-                    <a href="#" title="Disabled in OSS build"
+                    <a href="/minecraft/admin/analytics"
                         class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 transition-all flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -63,6 +63,23 @@
                         <span x-show="unreadCount > 0" x-text="unreadCount < 10 ? unreadCount : '9+'"
                             class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center"></span>
                     </a>
+                    <a href="/minecraft/backend-docs"
+                        class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/30 transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                        </svg>
+                        Operations
+                    </a>
+                    <button @click="openPreferences()"
+                        class="px-4 py-2 bg-slate-700/30 hover:bg-slate-700/50 text-slate-200 rounded-lg border border-slate-600/50 transition-all flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317a1 1 0 011.35-.936l.094.03a1 1 0 00.633 0l.094-.03a1 1 0 011.35.936l.02.157a1 1 0 00.434.693l.13.092a1 1 0 01.173 1.467l-.102.117a1 1 0 000 1.287l.102.117a1 1 0 01-.173 1.467l-.13.092a1 1 0 00-.434.693l-.02.157a1 1 0 01-1.35.936l-.094-.03a1 1 0 00-.633 0l-.094.03a1 1 0 01-1.35-.936l-.02-.157a1 1 0 00-.434-.693l-.13-.092a1 1 0 01-.173-1.467l.102-.117a1 1 0 000-1.287l-.102-.117a1 1 0 01.173-1.467l.13-.092a1 1 0 00.434-.693l.02-.157z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                        </svg>
+                        Preferences
+                    </button>
                     <button @click="checkUpdates()" :disabled="checking"
                         class="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30 transition-all disabled:opacity-50">
                         <span x-text="checking ? 'Checking...' : 'Check Updates'"></span>
@@ -84,22 +101,25 @@
                                 d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
                         </svg>
                     </div>
-                    <span class="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0a0a]
-                        {% if server_status.running %}bg-green-500 animate-pulse{% else %}bg-red-500{% endif %}"></span>
+                    <span class="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0a0a]"
+                        :class="serverHealthy ? 'bg-green-500 animate-pulse' : (serverProcessRunning ? 'bg-yellow-500 animate-pulse' : 'bg-red-500')"></span>
                 </div>
                 <div>
                     <div class="flex items-center gap-2">
                         <span class="font-semibold text-white">Status</span>
-                        <span class="px-2.5 py-1 text-sm rounded-full
-                            {% if server_status.running %}bg-green-500/20 text-green-400 border border-green-500/30
-                            {% else %}bg-red-500/20 text-red-400 border border-red-500/30{% endif %}">
-                            {% if server_status.running %}ONLINE{% else %}OFFLINE{% endif %}
+                        <span class="px-2.5 py-1 text-sm rounded-full border"
+                            :class="serverHealthy
+                                ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                : (serverProcessRunning
+                                    ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                                    : 'bg-red-500/20 text-red-400 border-red-500/30')"
+                            x-text="serverHealthy ? 'ONLINE' : (serverProcessRunning ? 'DEGRADED' : 'OFFLINE')">
                         </span>
                     </div>
                     <p class="text-sm text-slate-400">
                         Paper {{ server_status.paper_jar or 'Unknown' }} | {{ server_status.plugins_count }} plugins |
-                        <span :class="serverRunning ? 'text-green-400' : 'text-slate-500'"
-                              x-text="serverRunning ? `${playersOnline}/${maxPlayers} players` : 'Server stopped'">
+                        <span :class="serverHealthy ? 'text-green-400' : (serverProcessRunning ? 'text-yellow-300' : 'text-slate-500')"
+                              x-text="serverHealthy ? `${playersOnline}/${maxPlayers} players` : (serverProcessRunning ? `Degraded (${serverStateReason})` : 'Server stopped')">
                         </span>
                     </p>
                 </div>
@@ -112,13 +132,17 @@
                     </div>
                 </template>
                 <!-- Server Control Buttons -->
-                <button @click="startServer()" :disabled="serverRunning || loading"
+                <button @click="startServer()" :disabled="serverProcessRunning || loading"
                     class="px-3 py-1.5 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30 disabled:opacity-50 transition-all">
-                    <span x-text="loading && !serverRunning ? '...' : 'Start'"></span>
+                    <span x-text="loading && !serverProcessRunning ? '...' : 'Start'"></span>
                 </button>
                 <button @click="restartServer()" :disabled="loading"
                     class="px-3 py-1.5 text-sm bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg border border-orange-500/30 disabled:opacity-50 transition-all">
                     Restart
+                </button>
+                <button @click="recoverServer()" :disabled="serverHealthy || loading"
+                    class="px-3 py-1.5 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg border border-red-500/30 disabled:opacity-50 transition-all">
+                    Recover
                 </button>
             </div>
         </div>
@@ -172,10 +196,10 @@
                 <span x-show="pendingSpectatorCount > 0" x-text="pendingSpectatorCount"
                     class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center"></span>
             </button>
-            <button @click="activeTab = 'settings'"
+            <button x-show="canManageStaffRbac" @click="activeTab = 'settings'"
                 class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
                 :class="activeTab === 'settings' ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'">
-                Staff Settings
+                <span x-text="isMinecraftOwner ? 'Owner Settings' : 'RBAC Settings'"></span>
             </button>
         </div>
 
@@ -1752,8 +1776,117 @@
         </div>
 
         <!-- ==================== SETTINGS TAB (RBAC) ==================== -->
-        <div x-show="activeTab === 'settings'" x-transition>
+        <div x-show="activeTab === 'settings' && canManageStaffRbac" x-transition>
             <div class="space-y-3">
+                <!-- Owner Governance -->
+                <div x-show="isMinecraftOwner" class="glass-panel rounded-lg p-4 border border-amber-500/30">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422A12.083 12.083 0 0112 20.055 12.083 12.083 0 015.84 10.578L12 14z" />
+                            </svg>
+                            Owner Governance
+                        </h3>
+                        <button @click="refreshOwnerGovernance()" class="px-3 py-1.5 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                            Refresh
+                        </button>
+                    </div>
+                    <p class="text-sm text-slate-400 mb-3">
+                        Owner-only controls. Promoting to Manager Admin grants Minecraft admin access immediately and preserves staff RBAC snapshot for future demotion restore.
+                    </p>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div class="rounded-lg border border-slate-700/40 bg-slate-900/40 p-3">
+                            <h4 class="text-sm font-semibold text-slate-200 mb-2">Promote Staff to Manager Admin</h4>
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <select x-model="tierPromotionEmail"
+                                    class="flex-1 bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:border-amber-500 focus:outline-none">
+                                    <option value="">Select staff account...</option>
+                                    <template x-for="user in ownerTierOverview.staff_users" :key="user.email">
+                                        <option :value="user.email" x-text="user.email"></option>
+                                    </template>
+                                </select>
+                                <button @click="promoteToManagerAdmin()"
+                                    :disabled="!tierPromotionEmail"
+                                    class="px-3 py-2 text-sm bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-lg border border-amber-500/40 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Promote
+                                </button>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-2">Manager Admin access is scoped to Minecraft module admin routes.</p>
+                        </div>
+                        <div class="rounded-lg border border-slate-700/40 bg-slate-900/40 p-3">
+                            <h4 class="text-sm font-semibold text-slate-200 mb-2">Manager Admins (Tracked)</h4>
+                            <div class="space-y-2 max-h-48 overflow-auto pr-1">
+                                <template x-for="record in ownerTierOverview.manager_admin_records" :key="record.email">
+                                    <div class="rounded border border-slate-700/50 bg-slate-800/50 p-2">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <p class="text-xs font-medium text-white" x-text="record.email"></p>
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-[10px] px-2 py-0.5 rounded"
+                                                    :class="record.minecraft_admin_active ? 'bg-amber-500/20 text-amber-200' : 'bg-slate-700/40 text-slate-400'"
+                                                    x-text="record.minecraft_admin_active ? 'minecraft:manager' : 'minecraft:inactive'"></span>
+                                                <span class="text-[10px] px-2 py-0.5 rounded"
+                                                    :class="record.auth_admin_active ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'"
+                                                    x-text="record.auth_admin_active ? 'global:admin' : 'global:not-admin'"></span>
+                                            </div>
+                                        </div>
+                                        <p class="text-[11px] text-slate-500 mt-1">
+                                            promoted <span x-text="record.promoted_at ? formatDate(record.promoted_at) : '--'"></span>
+                                        </p>
+                                        <button x-show="record.minecraft_admin_active" @click="demoteManagerAdmin(record.email)"
+                                            class="mt-2 px-2 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-200 rounded border border-red-500/40">
+                                            Demote & Restore Staff Snapshot
+                                        </button>
+                                    </div>
+                                </template>
+                                <template x-if="ownerTierOverview.manager_admin_records.length === 0">
+                                    <div class="text-xs text-slate-500">No tracked manager admins yet.</div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="isMinecraftOwner" class="glass-panel rounded-lg p-4 border border-indigo-500/30">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-orbitron text-lg text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 014-4h4m0 0l-2-2m2 2l-2 2M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            Owner Audit Logs
+                        </h3>
+                        <button @click="loadOwnerAuditLogs()"
+                            class="px-3 py-1.5 text-xs bg-slate-700/30 hover:bg-slate-700/50 text-slate-300 rounded-lg">
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-3 text-xs">
+                        <div class="rounded-lg border border-slate-700/40 bg-slate-900/40 p-2">
+                            <h4 class="font-semibold text-slate-300 mb-2">Role Events</h4>
+                            <div class="space-y-1.5 max-h-56 overflow-auto pr-1">
+                                <template x-for="entry in ownerAuditLogs.role_events" :key="JSON.stringify(entry)">
+                                    <p class="text-slate-400 break-all" x-text="formatOwnerLogEntry(entry)"></p>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="rounded-lg border border-slate-700/40 bg-slate-900/40 p-2">
+                            <h4 class="font-semibold text-slate-300 mb-2">Admin Audit</h4>
+                            <div class="space-y-1.5 max-h-56 overflow-auto pr-1">
+                                <template x-for="entry in ownerAuditLogs.admin_audit" :key="JSON.stringify(entry)">
+                                    <p class="text-slate-400 break-all" x-text="formatOwnerLogEntry(entry)"></p>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="rounded-lg border border-slate-700/40 bg-slate-900/40 p-2">
+                            <h4 class="font-semibold text-slate-300 mb-2">RBAC Audit</h4>
+                            <div class="space-y-1.5 max-h-56 overflow-auto pr-1">
+                                <template x-for="entry in ownerAuditLogs.rbac_audit" :key="JSON.stringify(entry)">
+                                    <p class="text-slate-400 break-all" x-text="formatOwnerLogEntry(entry)"></p>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- RBAC Role Assignment -->
                 <div class="glass-panel rounded-lg p-4 border border-cyan-500/30">
                     <div class="flex items-center justify-between mb-4">
@@ -1860,7 +1993,7 @@
                 </div>
 
                 <!-- Legacy Staff Settings (collapsed) -->
-                <details class="glass-panel rounded-lg border border-slate-700/30">
+                <details x-show="isMinecraftOwner" class="glass-panel rounded-lg border border-slate-700/30">
                     <summary class="p-3 text-sm text-slate-500 cursor-pointer hover:text-slate-300">
                         Legacy Feature Toggles (deprecated)
                     </summary>
@@ -1899,6 +2032,78 @@
             </div>
         </div>
     </main>
+
+    <!-- Preferences Modal -->
+    <div x-show="preferencesModal" x-transition
+        @keydown.escape.window="preferencesModal = false"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="preferencesModal = false"></div>
+        <div class="relative w-full max-w-xl glass-card rounded-2xl border border-slate-600/50 p-5">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <h3 class="text-lg font-bold text-white">Preferences</h3>
+                <button @click="preferencesModal = false" class="text-slate-400 hover:text-white" aria-label="Close preferences modal">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Language</label>
+                    <select x-model="prefDraft.language" class="w-full rounded-lg px-3 py-2 bg-slate-800/60 border border-slate-600/50 text-white">
+                        <option value="ko">한국어</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Font Size</label>
+                    <select x-model="prefDraft.font_scale" class="w-full rounded-lg px-3 py-2 bg-slate-800/60 border border-slate-600/50 text-white">
+                        <option value="sm">Small</option>
+                        <option value="md">Medium</option>
+                        <option value="lg">Large</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Toast Duration</label>
+                    <select x-model.number="prefDraft.toast_duration_ms" class="w-full rounded-lg px-3 py-2 bg-slate-800/60 border border-slate-600/50 text-white">
+                        <option :value="2000">2s</option>
+                        <option :value="4000">4s</option>
+                        <option :value="7000">7s</option>
+                        <option :value="10000">10s</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-sm">
+                <label class="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-700/40">
+                    <span class="text-slate-200">High Contrast</span>
+                    <input type="checkbox" x-model="prefDraft.high_contrast"
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500">
+                </label>
+                <label class="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-700/40">
+                    <span class="text-slate-200">Reduce Motion</span>
+                    <input type="checkbox" x-model="prefDraft.reduced_motion"
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500">
+                </label>
+            </div>
+
+            <div class="mt-4 flex items-center justify-end gap-2">
+                <button @click="loadPreferences()"
+                    class="px-4 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-200">
+                    Reload
+                </button>
+                <button @click="preferencesModal = false"
+                    class="px-4 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-200">
+                    Cancel
+                </button>
+                <button @click="savePreferences()" :disabled="savingPreferences"
+                    class="px-4 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 disabled:opacity-50">
+                    <span x-text="savingPreferences ? 'Saving...' : 'Save Preferences'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Command Output Modal -->
     <div x-show="commandOutputModal" x-transition @click.self="commandOutputModal = false"
@@ -1951,6 +2156,40 @@
                 </button>
                 <button @click="confirmUpdate()" class="flex-1 px-4 py-2 text-sm bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg border border-green-500/30">
                     Update
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Operation Confirm Dialog -->
+    <div x-show="opConfirmDialog.show" x-transition
+        @keydown.escape.window="resolveOpConfirm(false)"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="resolveOpConfirm(false)"></div>
+        <div class="relative w-full max-w-md bg-[#0a0a0a] rounded-xl border border-slate-600/50 p-5">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h3 class="font-orbitron text-white" x-text="opConfirmDialog.title"></h3>
+                    <p class="text-sm text-slate-300 mt-2" x-text="opConfirmDialog.message"></p>
+                </div>
+                <button @click="resolveOpConfirm(false)" class="text-slate-400 hover:text-white"
+                    aria-label="Close confirmation dialog">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="mt-5 flex gap-2">
+                <button @click="resolveOpConfirm(false)"
+                    class="flex-1 px-4 py-2 text-sm bg-slate-700/40 hover:bg-slate-700/60 text-slate-200 rounded-lg">
+                    Cancel
+                </button>
+                <button x-ref="opConfirmPrimaryBtn" @click="resolveOpConfirm(true)"
+                    class="flex-1 px-4 py-2 text-sm rounded-lg border font-semibold"
+                    :class="opConfirmDialog.intent === 'danger'
+                        ? 'bg-red-500/20 hover:bg-red-500/30 text-red-200 border-red-500/40'
+                        : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border-amber-500/40'">
+                    <span x-text="opConfirmDialog.confirmText"></span>
                 </button>
             </div>
         </div>
@@ -2057,10 +2296,41 @@
             confirmModal: false,
             pendingUpdate: null,
             toast: { show: false, message: '', type: 'info' },
+            opConfirmDialog: {
+                show: false,
+                title: '',
+                message: '',
+                confirmText: 'Confirm',
+                intent: 'warning',
+                resolver: null
+            },
             loading: false,
             activeTab: 'overview',
+            preferencesModal: false,
+            savingPreferences: false,
+            preferences: {
+                language: 'ko',
+                theme: 'dark',
+                font_scale: 'md',
+                high_contrast: false,
+                reduced_motion: false,
+                toast_duration_ms: 4000
+            },
+            prefDraft: {
+                language: 'ko',
+                theme: 'dark',
+                font_scale: 'md',
+                high_contrast: false,
+                reduced_motion: false,
+                toast_duration_ms: 4000
+            },
 
             serverRunning: {{ 'true' if server_status.running else 'false' }},
+            serverProcessRunning: {{ 'true' if (server_status.process_running if server_status.process_running is defined else server_status.running) else 'false' }},
+            serverHealthy: {{ 'true' if (server_status.healthy if server_status.healthy is defined else server_status.running) else 'false' }},
+            serverStateReason: '{{ server_status.state_reason if server_status.state_reason is defined else ("ok" if server_status.running else "stopped") }}',
+            serverGamePortListening: {{ 'true' if (server_status.game_port_listening if server_status.game_port_listening is defined else server_status.running) else 'false' }},
+            serverRconPortListening: {{ 'true' if (server_status.rcon_port_listening if server_status.rcon_port_listening is defined else false) else 'false' }},
             playersOnline: {{ server_status.players_online or 0 }},
             maxPlayers: {{ server_status.max_players or 20 }},
             players: [],
@@ -2122,6 +2392,25 @@
                 player: '',
                 reason: 'Admin investigation',
                 duration: 30
+            },
+
+            // Minecraft-local tiering flags
+            isMinecraftOwner: {{ 'true' if is_minecraft_owner else 'false' }},
+            isMinecraftManagerAdmin: {{ 'true' if is_minecraft_manager_admin else 'false' }},
+            canManageStaffRbac: {{ 'true' if can_manage_staff_rbac else 'false' }},
+
+            // Owner governance data
+            ownerTierOverview: {
+                owner_email: '',
+                manager_admins_current: [],
+                manager_admin_records: [],
+                staff_users: []
+            },
+            tierPromotionEmail: '',
+            ownerAuditLogs: {
+                role_events: [],
+                admin_audit: [],
+                rbac_audit: []
             },
 
             // Staff Settings (legacy)
@@ -2210,6 +2499,9 @@
             },
 
             init() {
+                this.applyPreferences();
+                this.loadPreferences();
+                this.refreshServerStatus();
                 this.refreshPlayerList();
                 this.refreshSchedulerStatus();
                 this.refreshCoreprotectStatus();
@@ -2222,13 +2514,20 @@
                 this.loadActiveSpectators();
                 this.loadSpectatorStats();
                 this.loadValidTags();
-                this.loadStaffSettings();
-                this.loadRBACUsers();
-                this.loadRBACRoles();
+                if (this.canManageStaffRbac) {
+                    this.loadRBACUsers();
+                    this.loadRBACRoles();
+                }
+                if (this.isMinecraftOwner) {
+                    this.loadStaffSettings();
+                    this.loadAdminTierOverview();
+                    this.loadOwnerAuditLogs();
+                }
                 this.loadWhitelistAutocomplete();
                 if (this.serverRunning) {
                     this.fetchWhitelist();
                 }
+                setInterval(() => this.refreshServerStatus(), 5000);
                 setInterval(() => this.refreshPlayerList(), 5000);
                 setInterval(() => this.loadPendingSpectators(), 15000);
                 setInterval(() => this.refreshSchedulerStatus(), 5000);
@@ -2265,9 +2564,33 @@
                 return `${month}/${day} ${hours}:${minutes}`;
             },
 
+            async refreshServerStatus() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/status');
+                    const data = await response.json();
+                    if (data.status === 'ok' && data.server) {
+                        const server = data.server;
+                        this.serverRunning = !!server.running;
+                        this.serverProcessRunning = !!(server.process_running ?? server.running);
+                        this.serverHealthy = !!(server.healthy ?? server.running);
+                        this.serverStateReason = server.state_reason || (this.serverHealthy ? 'ok' : 'stopped');
+                        this.serverGamePortListening = !!(server.game_port_listening ?? false);
+                        this.serverRconPortListening = !!(server.rcon_port_listening ?? false);
+                        this.playersOnline = Number(server.players_online || 0);
+                        this.maxPlayers = Number(server.max_players || 20);
+                        if (!this.serverProcessRunning) {
+                            this.players = [];
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch server status:', e);
+                }
+            },
+
             async refreshPlayerList() {
-                if (!this.serverRunning) {
+                if (!this.serverHealthy) {
                     this.players = [];
+                    this.playersOnline = 0;
                     return;
                 }
                 try {
@@ -2279,6 +2602,7 @@
                     }
                 } catch (e) {
                     console.error('Failed to fetch players:', e);
+                    await this.refreshServerStatus();
                 }
             },
 
@@ -2323,40 +2647,192 @@
                 }
             },
 
+            applyPreferences() {
+                const html = document.documentElement;
+                html.lang = this.preferences.language || 'ko';
+                html.setAttribute('data-font-scale', this.preferences.font_scale || 'md');
+                html.setAttribute('data-high-contrast', this.preferences.high_contrast ? 'true' : 'false');
+                html.setAttribute('data-reduced-motion', this.preferences.reduced_motion ? 'true' : 'false');
+                this.preferences.theme = 'dark';
+                this.prefDraft.theme = 'dark';
+                html.classList.remove('pref-theme-light');
+                html.classList.add('pref-theme-dark');
+            },
+
+            async loadPreferences() {
+                try {
+                    const response = await fetch('/minecraft/admin/api/preferences');
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    if (data.status === 'ok' && data.preferences) {
+                        this.preferences = { ...this.preferences, ...data.preferences, theme: 'dark' };
+                        this.prefDraft = { ...this.preferences, theme: 'dark' };
+                        this.applyPreferences();
+                    }
+                } catch (e) {
+                    console.error('Failed to load preferences:', e);
+                }
+            },
+
+            openPreferences() {
+                this.prefDraft = { ...this.preferences, theme: 'dark' };
+                this.preferencesModal = true;
+            },
+
+            async savePreferences() {
+                this.savingPreferences = true;
+                try {
+                    const payload = { ...this.prefDraft, theme: 'dark' };
+                    const response = await fetch('/minecraft/admin/api/preferences', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.status === 'ok') {
+                        this.preferences = { ...this.preferences, ...(data.preferences || {}), theme: 'dark' };
+                        this.prefDraft = { ...this.preferences, theme: 'dark' };
+                        this.applyPreferences();
+                        this.preferencesModal = false;
+                        this.showToast('Preferences saved', 'success');
+                    } else {
+                        this.showToast(data.error || 'Failed to save preferences', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Failed to save preferences', 'error');
+                } finally {
+                    this.savingPreferences = false;
+                }
+            },
+
+            tr(koText, enText) {
+                return this.preferences.language === 'en' ? enText : koText;
+            },
+
+            confirmOperation({
+                title = 'Confirm Action',
+                message = '',
+                confirmText = 'Confirm',
+                intent = 'warning'
+            }) {
+                return new Promise((resolve) => {
+                    this.opConfirmDialog = {
+                        show: true,
+                        title,
+                        message,
+                        confirmText,
+                        intent,
+                        resolver: resolve
+                    };
+                    this.$nextTick(() => this.$refs.opConfirmPrimaryBtn?.focus());
+                });
+            },
+
+            resolveOpConfirm(confirmed) {
+                if (!this.opConfirmDialog.show) return;
+                const resolver = this.opConfirmDialog.resolver;
+                this.opConfirmDialog = {
+                    show: false,
+                    title: '',
+                    message: '',
+                    confirmText: 'Confirm',
+                    intent: 'warning',
+                    resolver: null
+                };
+                if (typeof resolver === 'function') resolver(confirmed);
+            },
+
             // ===== Server Control =====
 
             async startServer() {
-                if (!confirm('Start the server?')) return;
+                const confirmed = await this.confirmOperation({
+                    title: this.tr('서버 시작', 'Start Server'),
+                    message: this.tr('서버 프로세스를 시작하고 플레이어 접속을 허용합니다.', 'The server process will start and become available to players.'),
+                    confirmText: this.tr('시작', 'Start'),
+                    intent: 'warning'
+                });
+                if (!confirmed) return;
                 this.loading = true;
                 try {
                     const response = await fetch('/minecraft/admin/api/minecraft/server/start', { method: 'POST' });
                     const data = await response.json();
                     if (data.success) {
-                        this.showToast('Server starting...', 'success');
-                        this.serverRunning = true;
+                        this.showToast(this.tr('서버 시작 중...', 'Server starting...'), 'success');
+                        await this.refreshServerStatus();
+                        await this.refreshPlayerList();
                     } else {
-                        this.showToast('Failed: ' + data.error, 'error');
+                        this.showToast(this.tr('실패: ', 'Failed: ') + data.error, 'error');
+                        await this.refreshServerStatus();
                     }
                 } catch (e) {
-                    this.showToast('Failed to start server', 'error');
+                    this.showToast(this.tr('서버 시작 실패', 'Failed to start server'), 'error');
+                    await this.refreshServerStatus();
                 } finally {
                     this.loading = false;
                 }
             },
 
             async restartServer() {
-                if (!confirm('Restart the server?')) return;
+                const confirmed = await this.confirmOperation({
+                    title: this.tr('서버 재시작', 'Restart Server'),
+                    message: this.tr('재시작 중에는 접속한 플레이어가 모두 퇴장됩니다.', 'All connected players will be disconnected while the server restarts.'),
+                    confirmText: this.tr('재시작', 'Restart'),
+                    intent: 'danger'
+                });
+                if (!confirmed) return;
                 this.loading = true;
                 try {
                     const response = await fetch('/minecraft/admin/api/minecraft/server/restart', { method: 'POST' });
                     const data = await response.json();
                     if (data.success) {
-                        this.showToast('Restart command sent!', 'success');
+                        this.showToast(this.tr('재시작 명령 전송 완료', 'Restart command sent!'), 'success');
                     } else {
-                        this.showToast('Failed: ' + data.error, 'error');
+                        if (data.error_code === 'restart_in_progress') {
+                            this.showToast(this.tr('이미 재시작이 진행 중입니다.', 'Restart is already in progress.'), 'error');
+                        } else if (data.error_code === 'restart_cooldown') {
+                            const wait = Number.isFinite(Number(data.retry_after_seconds)) ? Number(data.retry_after_seconds) : 0;
+                            this.showToast(
+                                this.tr('서버 안정화 대기 중입니다. ', 'Server is stabilizing. Retry in ') + `${wait}s`,
+                                'error'
+                            );
+                        } else {
+                            this.showToast(this.tr('실패: ', 'Failed: ') + data.error, 'error');
+                        }
                     }
+                    await this.refreshServerStatus();
                 } catch (e) {
-                    this.showToast('Failed to restart server', 'error');
+                    this.showToast(this.tr('서버 재시작 실패', 'Failed to restart server'), 'error');
+                    await this.refreshServerStatus();
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async recoverServer() {
+                const confirmed = await this.confirmOperation({
+                    title: this.tr('긴급 복구', 'Emergency Recover'),
+                    message: this.tr(
+                        '상태 꼬임을 복구하기 위해 서버를 강제 정리 후 재기동합니다.',
+                        'Force clean up stale server state and start the server again.'
+                    ),
+                    confirmText: this.tr('복구', 'Recover'),
+                    intent: 'danger'
+                });
+                if (!confirmed) return;
+                this.loading = true;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/server/recover', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(this.tr('긴급 복구 완료', 'Recovery complete'), 'success');
+                    } else {
+                        this.showToast(this.tr('복구 실패: ', 'Recovery failed: ') + (data.error || 'Unknown error'), 'error');
+                    }
+                    await this.refreshServerStatus();
+                    await this.refreshPlayerList();
+                } catch (e) {
+                    this.showToast(this.tr('긴급 복구 실패', 'Recovery request failed'), 'error');
+                    await this.refreshServerStatus();
                 } finally {
                     this.loading = false;
                 }
@@ -3191,8 +3667,114 @@
                 }
             },
 
+            // ==================== OWNER GOVERNANCE ====================
+            async refreshOwnerGovernance() {
+                if (!this.isMinecraftOwner) return;
+                await Promise.all([
+                    this.loadAdminTierOverview(),
+                    this.loadOwnerAuditLogs(),
+                    this.loadStaffSettings(),
+                    this.loadRBACUsers(),
+                    this.loadRBACRoles()
+                ]);
+            },
+
+            async loadAdminTierOverview() {
+                if (!this.isMinecraftOwner) return;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/admin-tiers/overview');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.ownerTierOverview = {
+                            owner_email: data.owner_email || '',
+                            manager_admins_current: data.manager_admins_current || [],
+                            manager_admin_records: data.manager_admin_records || [],
+                            staff_users: data.staff_users || []
+                        };
+                    }
+                } catch (e) {
+                    console.error('Failed to load owner tier overview:', e);
+                }
+            },
+
+            async promoteToManagerAdmin() {
+                if (!this.isMinecraftOwner || !this.tierPromotionEmail) return;
+                try {
+                    const response = await fetch(`/minecraft/admin/api/minecraft/admin-tiers/promote/${encodeURIComponent(this.tierPromotionEmail)}`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        const msg = data.auth_admin_active
+                            ? `Promoted ${data.email}. (Global admin already active)`
+                            : `Promoted ${data.email} to Minecraft Manager Admin.`;
+                        this.showToast(msg, 'success');
+                        this.tierPromotionEmail = '';
+                        await this.refreshOwnerGovernance();
+                    } else {
+                        this.showToast(data.error || 'Failed to promote', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error promoting manager admin', 'error');
+                }
+            },
+
+            async demoteManagerAdmin(email) {
+                if (!this.isMinecraftOwner) return;
+                if (!confirm(`Demote ${email} and restore previous staff snapshot?`)) return;
+                try {
+                    const response = await fetch(`/minecraft/admin/api/minecraft/admin-tiers/demote/${encodeURIComponent(email)}`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        const msg = data.auth_admin_active
+                            ? `Demoted ${data.email} manager tier and restored staff snapshot. (Global admin still active)`
+                            : `Demoted ${data.email} and restored previous staff RBAC snapshot.`;
+                        this.showToast(msg, 'success');
+                        await this.refreshOwnerGovernance();
+                    } else {
+                        this.showToast(data.error || 'Failed to demote', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error demoting manager admin', 'error');
+                }
+            },
+
+            async loadOwnerAuditLogs() {
+                if (!this.isMinecraftOwner) return;
+                try {
+                    const response = await fetch('/minecraft/admin/api/minecraft/admin-audit/logs?limit=100');
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        this.ownerAuditLogs = {
+                            role_events: data.role_events || [],
+                            admin_audit: data.admin_audit || [],
+                            rbac_audit: data.rbac_audit || []
+                        };
+                    }
+                } catch (e) {
+                    console.error('Failed to load owner audit logs:', e);
+                }
+            },
+
+            formatOwnerLogEntry(entry) {
+                if (!entry) return '';
+                if (entry.raw) return entry.raw;
+                if (entry.action || entry.actor || entry.result) {
+                    const ts = entry.ts ? new Date(entry.ts * 1000).toLocaleString() : '';
+                    const action = entry.action || 'event';
+                    const actor = entry.actor || 'unknown';
+                    const target = entry.target ? ` -> ${entry.target}` : '';
+                    const result = entry.result ? ` [${entry.result}]` : '';
+                    return `${ts} ${actor}: ${action}${target}${result}`;
+                }
+                return JSON.stringify(entry);
+            },
+
             // ==================== STAFF SETTINGS ====================
             async loadStaffSettings() {
+                if (!this.isMinecraftOwner) return;
                 try {
                     const response = await fetch('/minecraft/admin/api/staff-settings');
                     const data = await response.json();
@@ -3206,6 +3788,7 @@
             },
 
             async toggleStaffFeature(staffEmail, feature, isCurrentlyHidden) {
+                if (!this.isMinecraftOwner) return;
                 try {
                     const response = await fetch(`/minecraft/admin/api/staff-settings/${staffEmail}/toggle`, {
                         method: 'POST',
@@ -3229,6 +3812,7 @@
 
             // ==================== RBAC MANAGEMENT ====================
             async loadRBACUsers() {
+                if (!this.canManageStaffRbac) return;
                 try {
                     const response = await fetch('/minecraft/admin/api/rbac/users');
                     const data = await response.json();
@@ -3241,6 +3825,7 @@
             },
 
             async loadRBACRoles() {
+                if (!this.canManageStaffRbac) return;
                 try {
                     const response = await fetch('/minecraft/admin/api/rbac/roles');
                     const data = await response.json();
@@ -3253,6 +3838,7 @@
             },
 
             async loadRBACPermissions() {
+                if (!this.canManageStaffRbac) return;
                 try {
                     const response = await fetch('/minecraft/admin/api/rbac/permissions');
                     const data = await response.json();
@@ -3290,6 +3876,7 @@
             },
 
             async setUserRole(email, role) {
+                if (!this.canManageStaffRbac) return;
                 try {
                     const response = await fetch(`/minecraft/admin/api/rbac/users/${encodeURIComponent(email)}/role`, {
                         method: 'PUT',
@@ -3309,6 +3896,7 @@
             },
 
             async grantPermission(email, perm) {
+                if (!this.canManageStaffRbac) return;
                 try {
                     const response = await fetch(`/minecraft/admin/api/rbac/users/${encodeURIComponent(email)}/grant`, {
                         method: 'POST',
@@ -3328,6 +3916,7 @@
             },
 
             async revokePermission(email, perm) {
+                if (!this.canManageStaffRbac) return;
                 try {
                     const response = await fetch(`/minecraft/admin/api/rbac/users/${encodeURIComponent(email)}/revoke`, {
                         method: 'POST',
@@ -3347,6 +3936,7 @@
             },
 
             async resetUserRBAC(email) {
+                if (!this.canManageStaffRbac) return;
                 if (!confirm(`Reset all RBAC settings for ${email}? They will lose all permissions.`)) return;
                 try {
                     const response = await fetch(`/minecraft/admin/api/rbac/users/${encodeURIComponent(email)}`, {
@@ -3476,7 +4066,8 @@
 
             showToast(message, type = 'info') {
                 this.toast = { show: true, message, type };
-                setTimeout(() => this.toast.show = false, 3000);
+                const duration = this.preferences.toast_duration_ms || 3000;
+                setTimeout(() => this.toast.show = false, duration);
             }
         }
     }

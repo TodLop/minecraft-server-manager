@@ -21,7 +21,7 @@ def _make_app() -> FastAPI:
     return app
 
 
-@pytest.mark.parametrize("cmd", ["stop", "/stop", "op testuser", "deop testuser", "ban-ip 1.2.3.4"])
+@pytest.mark.parametrize("cmd", ["stop", "/stop", "ban-ip 1.2.3.4", "pardon-ip 1.2.3.4"])
 def test_dangerous_commands_are_blocked(monkeypatch, cmd: str):
     async def _fake_send_command(command: str) -> dict:
         return {"success": True, "response": "ok"}
@@ -45,5 +45,20 @@ def test_allowed_command_passes(monkeypatch):
     client = TestClient(_make_app())
     client.get("/__test/login")
     resp = client.post("/minecraft/admin/api/minecraft/server/command", json={"command": "list"})
+    assert resp.status_code == 200
+    assert resp.json().get("success") is True
+
+
+@pytest.mark.parametrize("cmd", ["op testuser", "/op testuser", "deop testuser", "/deop testuser"])
+def test_op_and_deop_commands_are_allowed(monkeypatch, cmd: str):
+    async def _fake_send_command(command: str) -> dict:
+        return {"success": True, "response": "ok"}
+
+    from app.services import minecraft_server
+    monkeypatch.setattr(minecraft_server, "send_command", _fake_send_command)
+
+    client = TestClient(_make_app())
+    client.get("/__test/login")
+    resp = client.post("/minecraft/admin/api/minecraft/server/command", json={"command": cmd})
     assert resp.status_code == 200
     assert resp.json().get("success") is True

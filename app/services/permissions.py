@@ -52,6 +52,7 @@ ALL_PERMISSIONS = frozenset([
     "spectator:view", "spectator:request", "spectator:manage",
     "server:start", "server:restart",
     "plugins:view",
+    "ops:backend_docs:view",
 ])
 
 # Permission metadata: description and module grouping
@@ -82,6 +83,7 @@ PERMISSION_METADATA: Dict[str, dict] = {
     "server:start":             {"module": "server",        "description": "Start the server"},
     "server:restart":           {"module": "server",        "description": "Restart the server"},
     "plugins:view":             {"module": "plugins",       "description": "View plugin documentation"},
+    "ops:backend_docs:view":    {"module": "operations_docs", "description": "View backend operations documentation"},
 }
 
 # ============================================

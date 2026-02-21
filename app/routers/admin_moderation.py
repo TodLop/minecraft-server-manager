@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import JSONResponse
 
-from app.core.auth import require_admin
+from app.core.minecraft_access import require_minecraft_admin
 from app.services import minecraft_server
 
 # Import shared Minecraft utilities
@@ -50,7 +50,7 @@ BROADCAST_COOLDOWN_SECONDS = 60
 
 
 @router.post("/api/minecraft/kick")
-async def admin_kick_player(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_kick_player(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """
     Kick a player from the server (admin access - no protected player filtering).
     """
@@ -83,7 +83,7 @@ async def admin_kick_player(request: Request, user_info: dict = Depends(require_
 
 
 @router.post("/api/minecraft/tempban")
-async def admin_tempban_player(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_tempban_player(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """
     Temporarily ban a player (admin access - no protected player filtering).
     """
@@ -124,7 +124,7 @@ async def admin_tempban_player(request: Request, user_info: dict = Depends(requi
 
 
 @router.post("/api/minecraft/broadcast")
-async def admin_broadcast_message(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_broadcast_message(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """
     Send a server-wide broadcast message (admin access).
     """
@@ -181,7 +181,7 @@ async def admin_broadcast_message(request: Request, user_info: dict = Depends(re
 # =============================================================================
 
 @router.post("/api/minecraft/warn")
-async def admin_warn_player(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_warn_player(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """
     Issue a warning to a player (admin access - no protected player filtering).
     """
@@ -237,7 +237,7 @@ async def admin_warn_player(request: Request, user_info: dict = Depends(require_
 @router.get("/api/minecraft/warnings")
 async def admin_get_all_warnings(
     limit: int = Query(default=50, le=100, ge=1),
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """Get all recent warnings (admin access)."""
     warnings = warnings_service.get_all_warnings(limit=limit)
@@ -260,7 +260,7 @@ async def admin_get_all_warnings(
 
 
 @router.get("/api/minecraft/warnings/{player}")
-async def admin_get_player_warnings(player: str, user_info: dict = Depends(require_admin)):
+async def admin_get_player_warnings(player: str, user_info: dict = Depends(require_minecraft_admin)):
     """Get warning history for a specific player (admin access)."""
     if not PLAYER_NAME_PATTERN.match(player):
         return JSONResponse({
@@ -294,7 +294,7 @@ async def admin_get_player_warnings(player: str, user_info: dict = Depends(requi
 
 
 @router.delete("/api/minecraft/warnings/{warning_id}")
-async def admin_delete_warning(warning_id: str, user_info: dict = Depends(require_admin)):
+async def admin_delete_warning(warning_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Delete a warning by ID (admin access - can delete any warning)."""
     admin_email = user_info.get("email", "unknown")
 
@@ -326,7 +326,7 @@ async def admin_delete_warning(warning_id: str, user_info: dict = Depends(requir
 async def get_admin_server_logs(
     lines: int = Query(default=200, le=500, ge=10),
     search: Optional[str] = Query(default=None, max_length=50),
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """
     Get server logs for admin (less restrictive filtering than staff).
@@ -370,7 +370,7 @@ async def get_admin_server_logs(
 # =============================================================================
 
 @router.get("/api/minecraft/whitelist")
-async def admin_get_whitelist(user_info: dict = Depends(require_admin)):
+async def admin_get_whitelist(user_info: dict = Depends(require_minecraft_admin)):
     """Get current server whitelist (admin access)."""
     result = await minecraft_server.send_command("whitelist list")
 
@@ -396,7 +396,7 @@ async def admin_get_whitelist(user_info: dict = Depends(require_admin)):
 
 
 @router.post("/api/minecraft/whitelist/add")
-async def admin_whitelist_add(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_whitelist_add(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Add a player to the whitelist (admin access)."""
     body = await request.json()
     player = body.get("player", "").strip()
@@ -426,7 +426,7 @@ async def admin_whitelist_add(request: Request, user_info: dict = Depends(requir
 
 
 @router.post("/api/minecraft/whitelist/remove")
-async def admin_whitelist_remove(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_whitelist_remove(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Remove a player from the whitelist (admin access - no protected player check)."""
     body = await request.json()
     player = extract_username(body.get("player", "").strip())
@@ -468,7 +468,7 @@ async def admin_coreprotect_lookup(
     z: Optional[int] = Query(default=None),
     radius: int = Query(default=5, le=10, ge=1),
     limit: int = Query(default=50, le=100, ge=1),
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """
     Query CoreProtect database for block changes (admin access).
@@ -524,7 +524,7 @@ async def admin_coreprotect_lookup(
 # =============================================================================
 
 @router.get("/api/watchlist/valid-tags")
-async def admin_get_valid_tags(user_info: dict = Depends(require_admin)):
+async def admin_get_valid_tags(user_info: dict = Depends(require_minecraft_admin)):
     """Get list of valid watchlist tags."""
     return JSONResponse({
         "status": "ok",
@@ -535,7 +535,7 @@ async def admin_get_valid_tags(user_info: dict = Depends(require_admin)):
 @router.get("/api/watchlist")
 async def admin_get_watchlist(
     include_resolved: bool = Query(default=False),
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """Get all watchlist entries (admin access)."""
     entries = watchlist_service.get_watchlist(include_resolved=include_resolved)
@@ -568,7 +568,7 @@ async def admin_get_watchlist(
 
 
 @router.post("/api/watchlist")
-async def admin_add_to_watchlist(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_add_to_watchlist(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Add a player to the watchlist (admin only)."""
     body = await request.json()
     player = body.get("player", "").strip()
@@ -634,7 +634,7 @@ async def admin_add_to_watchlist(request: Request, user_info: dict = Depends(req
 async def admin_update_watchlist_entry(
     entry_id: str,
     request: Request,
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """Update a watchlist entry (admin only)."""
     body = await request.json()
@@ -669,7 +669,7 @@ async def admin_update_watchlist_entry(
 
 
 @router.delete("/api/watchlist/{entry_id}")
-async def admin_delete_watchlist_entry(entry_id: str, user_info: dict = Depends(require_admin)):
+async def admin_delete_watchlist_entry(entry_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Delete a watchlist entry permanently (admin only)."""
     admin_email = user_info.get("email", "unknown")
 
@@ -689,7 +689,7 @@ async def admin_delete_watchlist_entry(entry_id: str, user_info: dict = Depends(
 async def admin_resolve_watchlist_entry(
     entry_id: str,
     request: Request,
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """Resolve a watchlist entry (admin only)."""
     body = await request.json()
@@ -733,7 +733,7 @@ async def admin_resolve_watchlist_entry(
 # =============================================================================
 
 @router.get("/api/notes/{player}")
-async def admin_get_player_notes(player: str, user_info: dict = Depends(require_admin)):
+async def admin_get_player_notes(player: str, user_info: dict = Depends(require_minecraft_admin)):
     """Get all notes for a player (admin access)."""
     if not PLAYER_NAME_PATTERN.match(player):
         return JSONResponse({
@@ -764,7 +764,7 @@ async def admin_get_player_notes(player: str, user_info: dict = Depends(require_
 
 
 @router.post("/api/notes")
-async def admin_add_note(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_add_note(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Add a note about a player (admin access)."""
     body = await request.json()
     player = body.get("player", "").strip()
@@ -812,7 +812,7 @@ async def admin_add_note(request: Request, user_info: dict = Depends(require_adm
 
 
 @router.put("/api/notes/{note_id}")
-async def admin_update_note(note_id: str, request: Request, user_info: dict = Depends(require_admin)):
+async def admin_update_note(note_id: str, request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Update a note (admin can only edit own notes)."""
     body = await request.json()
     author_email = user_info.get("email", "unknown")
@@ -841,7 +841,7 @@ async def admin_update_note(note_id: str, request: Request, user_info: dict = De
 
 
 @router.delete("/api/notes/{note_id}")
-async def admin_delete_note(note_id: str, user_info: dict = Depends(require_admin)):
+async def admin_delete_note(note_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Delete a note (admin can delete any note)."""
     author_email = user_info.get("email", "unknown")
 
@@ -862,7 +862,7 @@ async def admin_delete_note(note_id: str, user_info: dict = Depends(require_admi
 # =============================================================================
 
 @router.get("/api/investigation/grimac/{player}")
-async def admin_run_grimac(player: str, user_info: dict = Depends(require_admin)):
+async def admin_run_grimac(player: str, user_info: dict = Depends(require_minecraft_admin)):
     """
     Get GrimAC violation history for a player from the database (admin access - no watchlist restriction).
     """
@@ -895,7 +895,7 @@ async def admin_run_grimac(player: str, user_info: dict = Depends(require_admin)
 
 
 @router.get("/api/investigation/mtrack/{player}")
-async def admin_run_mtrack(player: str, user_info: dict = Depends(require_admin)):
+async def admin_run_mtrack(player: str, user_info: dict = Depends(require_minecraft_admin)):
     """
     Run mtrack check command for a player (admin access - no watchlist restriction).
     """
@@ -923,7 +923,7 @@ async def admin_run_mtrack(player: str, user_info: dict = Depends(require_admin)
 # =============================================================================
 
 @router.post("/api/spectator/request")
-async def admin_create_spectator_request(request: Request, user_info: dict = Depends(require_admin)):
+async def admin_create_spectator_request(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Admin creates a spectator request (auto-approved)."""
     body = await request.json()
     player = body.get("player", "").strip()
@@ -967,7 +967,7 @@ async def admin_create_spectator_request(request: Request, user_info: dict = Dep
 
 
 @router.get("/api/spectator/pending")
-async def admin_get_pending_spectator_requests(user_info: dict = Depends(require_admin)):
+async def admin_get_pending_spectator_requests(user_info: dict = Depends(require_minecraft_admin)):
     """Get all pending spectator requests (admin only)."""
     requests = spectator_service.get_pending_requests()
 
@@ -990,7 +990,7 @@ async def admin_get_pending_spectator_requests(user_info: dict = Depends(require
 
 
 @router.get("/api/spectator/active")
-async def admin_get_active_spectator_sessions(user_info: dict = Depends(require_admin)):
+async def admin_get_active_spectator_sessions(user_info: dict = Depends(require_minecraft_admin)):
     """Get all active spectator sessions (admin only)."""
     sessions = spectator_service.get_active_sessions()
 
@@ -1012,7 +1012,7 @@ async def admin_get_active_spectator_sessions(user_info: dict = Depends(require_
 
 
 @router.get("/api/spectator/stats")
-async def admin_get_spectator_stats(user_info: dict = Depends(require_admin)):
+async def admin_get_spectator_stats(user_info: dict = Depends(require_minecraft_admin)):
     """Get spectator session statistics (admin only)."""
     stats = spectator_service.get_spectator_stats()
     return JSONResponse({
@@ -1025,7 +1025,7 @@ async def admin_get_spectator_stats(user_info: dict = Depends(require_admin)):
 async def admin_approve_spectator_request(
     session_id: str,
     request: Request,
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """Approve a pending spectator request (admin only)."""
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
@@ -1060,7 +1060,7 @@ async def admin_approve_spectator_request(
 async def admin_deny_spectator_request(
     session_id: str,
     request: Request,
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """Deny a pending spectator request (admin only)."""
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
@@ -1091,7 +1091,7 @@ async def admin_deny_spectator_request(
 
 
 @router.post("/api/spectator/{session_id}/revoke")
-async def admin_revoke_spectator_session(session_id: str, user_info: dict = Depends(require_admin)):
+async def admin_revoke_spectator_session(session_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Force-end any spectator session (admin only)."""
     admin_email = user_info.get("email", "unknown")
 
@@ -1119,7 +1119,7 @@ WHITELIST_CACHE_TTL = 300  # 5 minutes
 
 
 @router.get("/api/whitelist/autocomplete")
-async def get_whitelist_autocomplete(user_info: dict = Depends(require_admin)):
+async def get_whitelist_autocomplete(user_info: dict = Depends(require_minecraft_admin)):
     """Get whitelist for autocomplete (cached)."""
     import time
 

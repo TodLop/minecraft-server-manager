@@ -11,8 +11,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import TEMPLATES_DIR
-from app.core.auth import require_staff, require_admin, is_admin, get_current_user, require_permission
-from app.services import plugin_docs, plugin_notifications
+from app.core.auth import require_auth, is_staff
+from app.core.minecraft_access import is_minecraft_admin_user, require_minecraft_admin
+from app.services import plugin_docs, plugin_notifications, permissions as permissions_service
 from app.services.minecraft_updater import load_versions
 from app.services.modrinth_api import batch_get_icons, get_plugin_icon
 
@@ -20,11 +21,30 @@ router = APIRouter(prefix="/minecraft/plugins", tags=["PluginDocs"])
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
+async def require_plugins_view_access(request: Request) -> dict:
+    """
+    Plugin docs view access:
+    - Minecraft admins: always allowed
+    - Staff: requires plugins:view permission
+    """
+    user_info = await require_auth(request)
+    if is_minecraft_admin_user(user_info):
+        return user_info
+
+    if not is_staff(user_info):
+        raise HTTPException(status_code=403, detail="Staff access required")
+
+    email = user_info.get("email", "")
+    if not permissions_service.has_permission(email, "plugins:view"):
+        raise HTTPException(status_code=403, detail="Permission denied: plugins:view")
+    return user_info
+
+
 # ==================== Page Routes ====================
 
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
-async def plugins_overview(request: Request, user_info = Depends(require_permission("plugins:view"))):
+async def plugins_overview(request: Request, user_info=Depends(require_plugins_view_access)):
     """Plugin documentation overview page"""
     # Get plugin version info
     versions_data = load_versions()
@@ -74,17 +94,19 @@ async def plugins_overview(request: Request, user_info = Depends(require_permiss
     # Sort by name
     plugins_list.sort(key=lambda x: x["name"].lower())
 
+    user_is_minecraft_admin = is_minecraft_admin_user(user_info)
     return templates.TemplateResponse("plugins/index.html", {
         "request": request,
         "user_info": user_info,
-        "is_admin": is_admin(user_info),
+        "is_admin": user_is_minecraft_admin,
+        "is_minecraft_admin": user_is_minecraft_admin,
         "plugins": plugins_list,
-        "unread_count": unread_count
+        "unread_count": unread_count,
     })
 
 
 @router.get("/{plugin_id}", response_class=HTMLResponse)
-async def plugin_detail(request: Request, plugin_id: str, user_info = Depends(require_permission("plugins:view"))):
+async def plugin_detail(request: Request, plugin_id: str, user_info=Depends(require_plugins_view_access)):
     """Plugin detail page with tabs"""
     # Get version info
     versions_data = load_versions()
@@ -120,10 +142,12 @@ async def plugin_detail(request: Request, plugin_id: str, user_info = Depends(re
     # Get unread notification count (after marking)
     unread_count = plugin_notifications.get_unread_count(user_info.get("email", ""))
 
+    user_is_minecraft_admin = is_minecraft_admin_user(user_info)
     return templates.TemplateResponse("plugins/detail.html", {
         "request": request,
         "user_info": user_info,
-        "is_admin": is_admin(user_info),
+        "is_admin": user_is_minecraft_admin,
+        "is_minecraft_admin": user_is_minecraft_admin,
         "plugin_id": plugin_id,
         "plugin_name": plugin_id.title(),
         "version": version_info.get("full_version") or version_info.get("current_version", "Unknown"),
@@ -138,14 +162,14 @@ async def plugin_detail(request: Request, plugin_id: str, user_info = Depends(re
 # ==================== API Endpoints: Documentation ====================
 
 @router.get("/api/docs")
-async def get_all_docs(user_info: dict = Depends(require_permission("plugins:view"))):
+async def get_all_docs(user_info: dict = Depends(require_plugins_view_access)):
     """Get all plugin documentation"""
     docs = plugin_docs.get_all_plugins()
     return JSONResponse({"status": "ok", "plugins": docs})
 
 
 @router.get("/api/docs/{plugin_id}")
-async def get_plugin_doc(plugin_id: str, user_info: dict = Depends(require_permission("plugins:view"))):
+async def get_plugin_doc(plugin_id: str, user_info: dict = Depends(require_plugins_view_access)):
     """Get documentation for a specific plugin"""
     doc = plugin_docs.get_plugin(plugin_id)
     if not doc:
@@ -154,7 +178,7 @@ async def get_plugin_doc(plugin_id: str, user_info: dict = Depends(require_permi
 
 
 @router.put("/api/docs/{plugin_id}")
-async def update_plugin_doc(request: Request, plugin_id: str, user_info: dict = Depends(require_admin)):
+async def update_plugin_doc(request: Request, plugin_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Update plugin summary and description (Admin only)"""
     body = await request.json()
 
@@ -191,7 +215,7 @@ async def update_plugin_doc(request: Request, plugin_id: str, user_info: dict = 
 # ==================== API Endpoints: Commands ====================
 
 @router.post("/api/{plugin_id}/commands")
-async def add_command(request: Request, plugin_id: str, user_info: dict = Depends(require_admin)):
+async def add_command(request: Request, plugin_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Add a command to plugin documentation (Admin only)"""
     body = await request.json()
 
@@ -231,7 +255,7 @@ async def update_command(
     request: Request,
     plugin_id: str,
     command_id: str,
-    user_info: dict = Depends(require_admin)
+    user_info: dict = Depends(require_minecraft_admin)
 ):
     """Update a command (Admin only)"""
     body = await request.json()
@@ -255,7 +279,7 @@ async def update_command(
 
 
 @router.delete("/api/{plugin_id}/commands/{command_id}")
-async def delete_command(plugin_id: str, command_id: str, user_info: dict = Depends(require_admin)):
+async def delete_command(plugin_id: str, command_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Delete a command (Admin only)"""
     success = plugin_docs.delete_command(plugin_id, command_id)
 
@@ -271,7 +295,7 @@ async def delete_command(plugin_id: str, command_id: str, user_info: dict = Depe
 # ==================== API Endpoints: Key Settings ====================
 
 @router.post("/api/{plugin_id}/settings")
-async def add_key_setting(request: Request, plugin_id: str, user_info: dict = Depends(require_admin)):
+async def add_key_setting(request: Request, plugin_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Add a key setting highlight (Admin only)"""
     body = await request.json()
 
@@ -306,7 +330,7 @@ async def add_key_setting(request: Request, plugin_id: str, user_info: dict = De
 
 
 @router.delete("/api/{plugin_id}/settings/{setting_id}")
-async def delete_key_setting(plugin_id: str, setting_id: str, user_info: dict = Depends(require_admin)):
+async def delete_key_setting(plugin_id: str, setting_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Delete a key setting (Admin only)"""
     success = plugin_docs.delete_key_setting(plugin_id, setting_id)
 
@@ -322,7 +346,7 @@ async def delete_key_setting(plugin_id: str, setting_id: str, user_info: dict = 
 # ==================== API Endpoints: Comments ====================
 
 @router.post("/api/{plugin_id}/comments")
-async def add_comment(request: Request, plugin_id: str, user_info: dict = Depends(require_permission("plugins:view"))):
+async def add_comment(request: Request, plugin_id: str, user_info: dict = Depends(require_plugins_view_access)):
     """Add a comment (Staff + Admin)"""
     body = await request.json()
 
@@ -361,13 +385,14 @@ async def add_comment(request: Request, plugin_id: str, user_info: dict = Depend
 
 
 @router.delete("/api/{plugin_id}/comments/{comment_id}")
-async def delete_comment(plugin_id: str, comment_id: str, user_info: dict = Depends(require_permission("plugins:view"))):
+async def delete_comment(plugin_id: str, comment_id: str, user_info: dict = Depends(require_plugins_view_access)):
     """Delete a comment (Admin can delete any, Staff can delete own)"""
+    user_is_minecraft_admin = is_minecraft_admin_user(user_info)
     success = plugin_docs.delete_comment(
         plugin_id=plugin_id,
         comment_id=comment_id,
         user_email=user_info.get("email", ""),
-        is_admin=is_admin(user_info)
+        is_admin=user_is_minecraft_admin,
     )
 
     if not success:
@@ -385,7 +410,7 @@ async def delete_comment(plugin_id: str, comment_id: str, user_info: dict = Depe
 async def get_config_file(
     plugin_id: str,
     filename: str = "config.yml",
-    user_info: dict = Depends(require_permission("plugins:view"))
+    user_info: dict = Depends(require_plugins_view_access),
 ):
     """Read a config file for a plugin (read-only)"""
     result = plugin_docs.read_config_file(plugin_id, filename)
@@ -406,7 +431,7 @@ async def get_config_file(
 
 
 @router.get("/api/{plugin_id}/config/files")
-async def list_config_files(plugin_id: str, user_info: dict = Depends(require_permission("plugins:view"))):
+async def list_config_files(plugin_id: str, user_info: dict = Depends(require_plugins_view_access)):
     """List available config files for a plugin"""
     files = plugin_docs.list_config_files(plugin_id)
     return JSONResponse({"status": "ok", "files": files})
@@ -418,7 +443,7 @@ async def list_config_files(plugin_id: str, user_info: dict = Depends(require_pe
 async def get_notifications(
     limit: int = 50,
     unread_only: bool = False,
-    user_info: dict = Depends(require_permission("plugins:view"))
+    user_info: dict = Depends(require_plugins_view_access),
 ):
     """Get notifications for the current user"""
     notifications = plugin_notifications.get_notifications(
@@ -430,14 +455,14 @@ async def get_notifications(
 
 
 @router.get("/api/notifications/unread")
-async def get_unread_count(user_info: dict = Depends(require_permission("plugins:view"))):
+async def get_unread_count(user_info: dict = Depends(require_plugins_view_access)):
     """Get unread notification count"""
     count = plugin_notifications.get_unread_count(user_info.get("email", ""))
     return JSONResponse({"status": "ok", "count": count})
 
 
 @router.post("/api/notifications/mark-read")
-async def mark_notifications_read(request: Request, user_info: dict = Depends(require_permission("plugins:view"))):
+async def mark_notifications_read(request: Request, user_info: dict = Depends(require_plugins_view_access)):
     """Mark notifications as read"""
     body = await request.json()
     notification_ids = body.get("ids")  # None means mark all
@@ -453,7 +478,7 @@ async def mark_notifications_read(request: Request, user_info: dict = Depends(re
 # ==================== Initialization Endpoint ====================
 
 @router.post("/api/initialize")
-async def initialize_docs(user_info: dict = Depends(require_admin)):
+async def initialize_docs(user_info: dict = Depends(require_minecraft_admin)):
     """Initialize plugin documentation with default data (Admin only)"""
     count = plugin_docs.initialize_plugin_docs()
     return JSONResponse({"status": "ok", "plugins_initialized": count})

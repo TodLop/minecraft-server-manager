@@ -70,12 +70,17 @@ async def _exec_server_start(user_info: dict, params: dict[str, Any]) -> dict:
 
 
 async def _exec_server_restart(user_info: dict, params: dict[str, Any]) -> dict:
-    return await minecraft_server.restart_server()
+    source = str(params.get("source", "operations"))
+    return await minecraft_server.restart_server(source=source)
 
 
 async def _exec_server_stop(user_info: dict, params: dict[str, Any]) -> dict:
     force = bool(params.get("force", False))
     return await minecraft_server.stop_server(force=force)
+
+
+async def _exec_server_recover(user_info: dict, params: dict[str, Any]) -> dict:
+    return await minecraft_server.recover_server()
 
 
 _REGISTRY: dict[str, OperationSpec] = {
@@ -102,6 +107,14 @@ _REGISTRY: dict[str, OperationSpec] = {
         risk="high",
         preflight=_preflight_always_ok,
         executor=_exec_server_stop,
+    ),
+    "server:recover": OperationSpec(
+        key="server:recover",
+        required_permission=None,
+        admin_only=True,
+        risk="high",
+        preflight=_preflight_always_ok,
+        executor=_exec_server_recover,
     ),
 }
 

@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import TEMPLATES_DIR, APP_VERSION
-from app.core.auth import require_admin, is_admin, get_current_user
+from app.core.minecraft_access import require_minecraft_admin
 from app.services import minecraft_updater
 from app.services import minecraft_server
 
@@ -36,7 +36,14 @@ if not admin_audit_logger.handlers:
     admin_audit_logger.addHandler(_handler)
 
 # RCON command security
-DANGEROUS_COMMANDS = frozenset({"stop", "op", "deop", "ban-ip", "pardon-ip"})
+# NOTE: OP/DEOP are intentionally left commented for now (temporarily allowed for admin console operations).
+DANGEROUS_COMMANDS = frozenset({
+    "stop",
+    # "op",
+    # "deop",
+    "ban-ip",
+    "pardon-ip",
+})
 _command_rate_limits: dict = {}  # email -> list of timestamps
 COMMAND_RATE_LIMIT = 10  # max commands per minute
 COMMAND_RATE_WINDOW = 60  # seconds
@@ -46,7 +53,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @router.get("/api/minecraft/status")
-async def get_minecraft_status(user_info: dict = Depends(require_admin)):
+async def get_minecraft_status(user_info: dict = Depends(require_minecraft_admin)):
     """Get Minecraft server status and plugin versions"""
     versions_data = minecraft_updater.load_versions()
     server_status = minecraft_updater.get_server_status()
@@ -61,7 +68,7 @@ async def get_minecraft_status(user_info: dict = Depends(require_admin)):
 
 
 @router.get("/console", response_class=HTMLResponse)
-async def minecraft_console(request: Request, user_info: dict = Depends(require_admin)):
+async def minecraft_console(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Minecraft server console page"""
     server_status = minecraft_server.get_server_status()
     rcon_config = minecraft_server.get_rcon_config()
@@ -76,7 +83,7 @@ async def minecraft_console(request: Request, user_info: dict = Depends(require_
 
 
 @router.get("/log", response_class=HTMLResponse)
-async def minecraft_dev_log(request: Request, user_info: dict = Depends(require_admin)):
+async def minecraft_dev_log(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Developer-only raw log viewer page"""
     return templates.TemplateResponse("admin/log.html", {
         "request": request,
@@ -86,7 +93,7 @@ async def minecraft_dev_log(request: Request, user_info: dict = Depends(require_
 
 
 @router.get("/api/minecraft/server/status")
-async def get_server_status(user_info: dict = Depends(require_admin)):
+async def get_server_status(user_info: dict = Depends(require_minecraft_admin)):
     """Get detailed server running status"""
     status = minecraft_server.get_server_status()
     rcon_config = minecraft_server.get_rcon_config()
@@ -95,7 +102,12 @@ async def get_server_status(user_info: dict = Depends(require_admin)):
         "status": "ok",
         "server": {
             "running": status.running,
+            "process_running": status.process_running,
+            "healthy": status.healthy,
+            "state_reason": status.state_reason,
             "pid": status.pid,
+            "game_port_listening": status.game_port_listening,
+            "rcon_port_listening": status.rcon_port_listening,
             "players_online": status.players_online,
             "max_players": status.max_players,
             "version": status.version,
@@ -108,7 +120,7 @@ async def get_server_status(user_info: dict = Depends(require_admin)):
 
 
 @router.get("/api/minecraft/players")
-async def get_admin_online_players(user_info: dict = Depends(require_admin)):
+async def get_admin_online_players(user_info: dict = Depends(require_minecraft_admin)):
     """Get list of online players for admin panel"""
     status = minecraft_server.get_server_status()
     if not status.running:
@@ -136,7 +148,7 @@ async def get_admin_online_players(user_info: dict = Depends(require_admin)):
 
 
 @router.post("/api/minecraft/server/start")
-async def start_server(request: Request, user_info: dict = Depends(require_admin)):
+async def start_server(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Start the Minecraft server"""
     from app.services.operations import execute_operation
     result = await execute_operation(
@@ -148,7 +160,7 @@ async def start_server(request: Request, user_info: dict = Depends(require_admin
 
 
 @router.post("/api/minecraft/server/stop")
-async def stop_server(request: Request, force: bool = False, user_info: dict = Depends(require_admin)):
+async def stop_server(request: Request, force: bool = False, user_info: dict = Depends(require_minecraft_admin)):
     """Stop the Minecraft server"""
     from app.services.operations import execute_operation
     result = await execute_operation(
@@ -161,11 +173,24 @@ async def stop_server(request: Request, force: bool = False, user_info: dict = D
 
 
 @router.post("/api/minecraft/server/restart")
-async def restart_server(request: Request, user_info: dict = Depends(require_admin)):
+async def restart_server(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Restart the Minecraft server"""
     from app.services.operations import execute_operation
     result = await execute_operation(
         key="server:restart",
+        user_info=user_info,
+        params={"source": "admin_ui"},
+        idempotency_key=request.headers.get("Idempotency-Key"),
+    )
+    return JSONResponse(result)
+
+
+@router.post("/api/minecraft/server/recover")
+async def recover_server(request: Request, user_info: dict = Depends(require_minecraft_admin)):
+    """Emergency recovery when UI/server state diverges."""
+    from app.services.operations import execute_operation
+    result = await execute_operation(
+        key="server:recover",
         user_info=user_info,
         idempotency_key=request.headers.get("Idempotency-Key"),
     )
@@ -173,7 +198,7 @@ async def restart_server(request: Request, user_info: dict = Depends(require_adm
 
 
 @router.post("/api/minecraft/server/command")
-async def send_server_command(request: Request, user_info: dict = Depends(require_admin)):
+async def send_server_command(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Send a command to the Minecraft server (with audit logging, denylist, and rate limiting)"""
     body = await request.json()
     command = body.get("command", "").strip()
@@ -242,7 +267,7 @@ async def send_server_command(request: Request, user_info: dict = Depends(requir
 
 
 @router.get("/api/minecraft/server/logs")
-async def get_server_logs(lines: int = 100, offset: int = 0, user_info: dict = Depends(require_admin)):
+async def get_server_logs(lines: int = 100, offset: int = 0, user_info: dict = Depends(require_minecraft_admin)):
     """Get server console logs with pagination support"""
     # Try to get live logs first, fall back to file
     logs = minecraft_server.get_recent_logs(lines, offset=offset)
@@ -260,7 +285,7 @@ async def get_server_logs(lines: int = 100, offset: int = 0, user_info: dict = D
 
 
 @router.get("/api/minecraft/server/full-log")
-async def get_full_server_log(user_info: dict = Depends(require_admin)):
+async def get_full_server_log(user_info: dict = Depends(require_minecraft_admin)):
     """Get FULL server log from latest.log file (for developer debugging)"""
     logs = minecraft_server.read_latest_log(lines=10000)  # Get up to 10000 lines
     return JSONResponse({
@@ -271,7 +296,7 @@ async def get_full_server_log(user_info: dict = Depends(require_admin)):
 
 
 @router.get("/api/minecraft/server/log-files")
-async def list_log_files(user_info: dict = Depends(require_admin)):
+async def list_log_files(user_info: dict = Depends(require_minecraft_admin)):
     """List all available log files (latest.log and archived .gz files)"""
     logs_dir = minecraft_server.SERVER_DIR / "logs"
     log_files = []
@@ -301,7 +326,7 @@ async def list_log_files(user_info: dict = Depends(require_admin)):
 
 
 @router.get("/api/minecraft/server/log-file/{filename:path}")
-async def get_log_file(filename: str, user_info: dict = Depends(require_admin)):
+async def get_log_file(filename: str, user_info: dict = Depends(require_minecraft_admin)):
     """Load a specific log file by name (supports .gz files)"""
     logs_dir = minecraft_server.SERVER_DIR / "logs"
     log_path = logs_dir / filename
@@ -442,7 +467,7 @@ async def websocket_raw_logs(websocket: WebSocket):
 # =============================================================================
 
 @router.post("/api/minecraft/update/{plugin_id}")
-async def apply_plugin_update(plugin_id: str, user_info: dict = Depends(require_admin)):
+async def apply_plugin_update(plugin_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """
     Apply update for a specific plugin
 
@@ -491,7 +516,7 @@ async def apply_plugin_update(plugin_id: str, user_info: dict = Depends(require_
 
 
 @router.post("/api/minecraft/update-with-restart/{plugin_id}")
-async def apply_update_with_restart(plugin_id: str, user_info: dict = Depends(require_admin)):
+async def apply_update_with_restart(plugin_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """
     Full update flow: stop server -> apply update -> start server
     """
@@ -579,7 +604,7 @@ async def apply_update_with_restart(plugin_id: str, user_info: dict = Depends(re
 
 
 @router.post("/api/minecraft/check-updates")
-async def trigger_update_check(user_info: dict = Depends(require_admin)):
+async def trigger_update_check(user_info: dict = Depends(require_minecraft_admin)):
     """Manually trigger update check for all tracked plugins"""
     try:
         results = await minecraft_updater.check_all_updates()
@@ -615,7 +640,7 @@ async def trigger_update_check(user_info: dict = Depends(require_admin)):
 
 
 @router.get("/api/minecraft/logs")
-async def get_update_logs(limit: int = 20, user_info: dict = Depends(require_admin)):
+async def get_update_logs(limit: int = 20, user_info: dict = Depends(require_minecraft_admin)):
     """Get recent update operation logs"""
     logs = minecraft_updater.get_update_logs(limit=limit)
     return JSONResponse({
@@ -626,7 +651,7 @@ async def get_update_logs(limit: int = 20, user_info: dict = Depends(require_adm
 
 
 @router.get("/api/minecraft/update-logs")
-async def get_update_logs_api(limit: int = 10, user_info: dict = Depends(require_admin)):
+async def get_update_logs_api(limit: int = 10, user_info: dict = Depends(require_minecraft_admin)):
     """Get update logs via API for Alpine.js"""
     logs = minecraft_updater.get_update_logs(limit=limit)
     return JSONResponse({
@@ -636,7 +661,7 @@ async def get_update_logs_api(limit: int = 10, user_info: dict = Depends(require
 
 
 @router.get("/api/minecraft/changelog/{plugin_id}")
-async def get_plugin_changelog(plugin_id: str, user_info: dict = Depends(require_admin)):
+async def get_plugin_changelog(plugin_id: str, user_info: dict = Depends(require_minecraft_admin)):
     """Get changelog for a specific plugin's latest version"""
     try:
         versions_data = minecraft_updater.load_versions()
@@ -676,7 +701,7 @@ async def get_plugin_changelog(plugin_id: str, user_info: dict = Depends(require
 
 
 @router.post("/api/minecraft/server/enable-rcon")
-async def enable_rcon_endpoint(user_info: dict = Depends(require_admin)):
+async def enable_rcon_endpoint(user_info: dict = Depends(require_minecraft_admin)):
     """Enable RCON in server.properties - requires server restart"""
 
     # Generate a secure password

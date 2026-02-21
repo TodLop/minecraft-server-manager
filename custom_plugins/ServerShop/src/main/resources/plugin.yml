@@ -1,0 +1,39 @@
+name: ServerShop
+version: '${project.version}'
+main: com.nearoutpost.servershop.ServerShop
+api-version: '1.21'
+description: SeverShop main command - server economy shop
+author: NearOutpost
+depend:
+  - Vault
+  - LuckPerms
+softdepend:
+  - Essentials
+
+commands:
+  severshop:
+    description: SeverShop main command
+    usage: /<command> help
+    aliases: [ss, buy]
+    permission: servershop.buy
+    permission-message: You don't have permission to use /severshop
+
+permissions:
+  servershop.buy:
+    description: Allows buying items from server shop
+    default: true
+  servershop.admin:
+    description: Allows reloading the plugin and admin commands
+    default: op
+  servershop.sethome.bypass:
+    description: Gives unlimited sethome slots (bypass purchase system)
+    default: op
+  servershop.nickname.admin:
+    description: Allows admin nickname commands (set, resetcooldown, reset)
+    default: op
+  servershop.anvil.use:
+    description: Allows using anvils (purchased via /severshop anvil)
+    default: false
+  servershop.craft.use:
+    description: Allows using crafting tables (purchased via /severshop craft)
+    default: false

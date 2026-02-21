@@ -1,9 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{% block html_lang %}ko{% endblock %}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Project Octopus{% endblock %}</title>
+    {% block meta %}
+    {% set resolved_page_title = page_title|default('hjjang.dev - 프로젝트 허브 | Projects Hub') %}
+    {% set resolved_page_description = page_description|default('포트폴리오, 운영 자동화, 커뮤니티 시스템 프로젝트를 한곳에서 소개합니다.') %}
+    {% set resolved_canonical = canonical_url|default(request.url if request is defined else 'https://hjjang.dev/') %}
+    <meta name="description" content="{{ resolved_page_description }}">
+    <meta name="robots" content="index,follow">
+    <link rel="canonical" href="{{ resolved_canonical }}">
+    <meta property="og:title" content="{{ resolved_page_title }}">
+    <meta property="og:description" content="{{ resolved_page_description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ resolved_canonical }}">
+    <meta property="og:site_name" content="hjjang.dev">
+    <meta property="og:locale" content="ko_KR">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ resolved_page_title }}">
+    <meta name="twitter:description" content="{{ resolved_page_description }}">
+    {% endblock %}
 
     {% include "components/favicon_links.html" %}
 

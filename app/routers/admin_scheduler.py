@@ -8,7 +8,7 @@ Extracted from admin.py — scheduler-related endpoints.
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 
-from app.core.auth import require_admin
+from app.core.minecraft_access import require_minecraft_admin
 from app.services.reboot_scheduler import get_scheduler
 
 router = APIRouter()
@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 @router.get("/api/minecraft/reboot-scheduler/status")
-async def get_reboot_scheduler_status(user_info: dict = Depends(require_admin)):
+async def get_reboot_scheduler_status(user_info: dict = Depends(require_minecraft_admin)):
     """Get current reboot scheduler status"""
     scheduler = get_scheduler()
     return JSONResponse({
@@ -31,7 +31,7 @@ async def get_reboot_scheduler_status(user_info: dict = Depends(require_admin)):
 
 
 @router.get("/api/minecraft/reboot-scheduler/logs")
-async def get_reboot_scheduler_logs(limit: int = 50, user_info: dict = Depends(require_admin)):
+async def get_reboot_scheduler_logs(limit: int = 50, user_info: dict = Depends(require_minecraft_admin)):
     """Get reboot scheduler action logs"""
     scheduler = get_scheduler()
     return JSONResponse({
@@ -41,7 +41,7 @@ async def get_reboot_scheduler_logs(limit: int = 50, user_info: dict = Depends(r
 
 
 @router.post("/api/minecraft/reboot-scheduler/config")
-async def update_reboot_scheduler_config(request: Request, user_info: dict = Depends(require_admin)):
+async def update_reboot_scheduler_config(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Update reboot scheduler configuration"""
     body = await request.json()
     scheduler = get_scheduler()
@@ -52,7 +52,7 @@ async def update_reboot_scheduler_config(request: Request, user_info: dict = Dep
 
 
 @router.post("/api/minecraft/reboot-scheduler/trigger")
-async def trigger_manual_restart(request: Request, user_info: dict = Depends(require_admin)):
+async def trigger_manual_restart(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Manually trigger a server restart with countdown"""
     body = await request.json()
     reason = body.get("reason", "manual")
@@ -64,7 +64,7 @@ async def trigger_manual_restart(request: Request, user_info: dict = Depends(req
 
 
 @router.post("/api/minecraft/reboot-scheduler/cancel")
-async def cancel_restart_countdown(user_info: dict = Depends(require_admin)):
+async def cancel_restart_countdown(user_info: dict = Depends(require_minecraft_admin)):
     """Cancel an active restart countdown"""
     scheduler = get_scheduler()
     result = scheduler.cancel_countdown()
@@ -76,7 +76,7 @@ async def cancel_restart_countdown(user_info: dict = Depends(require_admin)):
 # =============================================================================
 
 @router.get("/api/minecraft/coreprotect/status")
-async def get_coreprotect_status(user_info: dict = Depends(require_admin)):
+async def get_coreprotect_status(user_info: dict = Depends(require_minecraft_admin)):
     """Get CoreProtect purge status"""
     scheduler = get_scheduler()
     return JSONResponse({
@@ -86,7 +86,7 @@ async def get_coreprotect_status(user_info: dict = Depends(require_admin)):
 
 
 @router.post("/api/minecraft/coreprotect/config")
-async def update_coreprotect_config(request: Request, user_info: dict = Depends(require_admin)):
+async def update_coreprotect_config(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Update CoreProtect purge configuration"""
     body = await request.json()
     scheduler = get_scheduler()
@@ -110,7 +110,7 @@ async def update_coreprotect_config(request: Request, user_info: dict = Depends(
 
 
 @router.post("/api/minecraft/coreprotect/purge")
-async def trigger_coreprotect_purge(user_info: dict = Depends(require_admin)):
+async def trigger_coreprotect_purge(user_info: dict = Depends(require_minecraft_admin)):
     """Manually trigger CoreProtect log purge"""
     scheduler = get_scheduler()
     result = await scheduler.execute_coreprotect_purge(manual=True)
@@ -122,7 +122,7 @@ async def trigger_coreprotect_purge(user_info: dict = Depends(require_admin)):
 # =============================================================================
 
 @router.get("/api/minecraft/backup-scheduler/status")
-async def get_backup_scheduler_status(user_info: dict = Depends(require_admin)):
+async def get_backup_scheduler_status(user_info: dict = Depends(require_minecraft_admin)):
     """Get current backup scheduler status and config"""
     from app.services.backup_scheduler import get_backup_scheduler
     scheduler = get_backup_scheduler()
@@ -135,7 +135,7 @@ async def get_backup_scheduler_status(user_info: dict = Depends(require_admin)):
 
 
 @router.get("/api/minecraft/backup-scheduler/logs")
-async def get_backup_scheduler_logs(limit: int = 50, user_info: dict = Depends(require_admin)):
+async def get_backup_scheduler_logs(limit: int = 50, user_info: dict = Depends(require_minecraft_admin)):
     """Get backup scheduler action logs"""
     from app.services.backup_scheduler import get_backup_scheduler
     scheduler = get_backup_scheduler()
@@ -146,7 +146,7 @@ async def get_backup_scheduler_logs(limit: int = 50, user_info: dict = Depends(r
 
 
 @router.post("/api/minecraft/backup-scheduler/config")
-async def update_backup_scheduler_config(request: Request, user_info: dict = Depends(require_admin)):
+async def update_backup_scheduler_config(request: Request, user_info: dict = Depends(require_minecraft_admin)):
     """Update backup scheduler configuration"""
     body = await request.json()
     from app.services.backup_scheduler import get_backup_scheduler
@@ -165,7 +165,7 @@ async def update_backup_scheduler_config(request: Request, user_info: dict = Dep
 
 
 @router.post("/api/minecraft/backup-scheduler/trigger")
-async def trigger_manual_backup(user_info: dict = Depends(require_admin)):
+async def trigger_manual_backup(user_info: dict = Depends(require_minecraft_admin)):
     """Manually trigger a server backup"""
     from app.services.backup_scheduler import get_backup_scheduler
     scheduler = get_backup_scheduler()
@@ -174,7 +174,7 @@ async def trigger_manual_backup(user_info: dict = Depends(require_admin)):
 
 
 @router.post("/api/minecraft/backup-scheduler/cancel")
-async def cancel_backup_countdown(user_info: dict = Depends(require_admin)):
+async def cancel_backup_countdown(user_info: dict = Depends(require_minecraft_admin)):
     """Cancel an active backup countdown"""
     from app.services.backup_scheduler import get_backup_scheduler
     scheduler = get_backup_scheduler()
@@ -183,7 +183,7 @@ async def cancel_backup_countdown(user_info: dict = Depends(require_admin)):
 
 
 @router.post("/api/minecraft/backup-scheduler/test-connection")
-async def test_backup_drive_connection(user_info: dict = Depends(require_admin)):
+async def test_backup_drive_connection(user_info: dict = Depends(require_minecraft_admin)):
     """Test Google Drive connectivity for backup service account"""
     from app.services.backup_scheduler import get_backup_scheduler
     scheduler = get_backup_scheduler()

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import TEMPLATES_DIR, PROTECTED_PLAYERS, DATA_DIR
@@ -48,6 +48,7 @@ if not audit_logger.handlers:
     ))
     audit_logger.addHandler(handler)
 from app.core.auth import require_staff, require_permission, is_admin
+from app.core.minecraft_access import is_minecraft_admin_user
 from app.services import minecraft_server
 from app.services import permissions as permissions_service
 
@@ -59,6 +60,9 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 @router.get("/", response_class=HTMLResponse)
 async def staff_minecraft_dashboard(request: Request, user_info: dict = Depends(require_staff)):
     """Staff Minecraft dashboard with limited controls"""
+    if is_minecraft_admin_user(user_info):
+        return RedirectResponse(url="/minecraft/admin", status_code=303)
+
     server_status = minecraft_server.get_server_status()
 
     # Get online players list if server is running
@@ -103,7 +107,12 @@ async def get_staff_server_status(user_info: dict = Depends(require_permission("
         "status": "ok",
         "server": {
             "running": status.running,
+            "process_running": status.process_running,
+            "healthy": status.healthy,
+            "state_reason": status.state_reason,
             "pid": status.pid,
+            "game_port_listening": status.game_port_listening,
+            "rcon_port_listening": status.rcon_port_listening,
             "players_online": status.players_online,
             "max_players": status.max_players,
         }
@@ -163,6 +172,7 @@ async def staff_restart_server(request: Request, user_info: dict = Depends(requi
     result = await execute_operation(
         key="server:restart",
         user_info=user_info,
+        params={"source": "staff_ui"},
         idempotency_key=request.headers.get("Idempotency-Key"),
     )
     if result.get("success"):
@@ -657,6 +667,7 @@ from app.services import player_notes as notes_service
 from app.services import investigation as investigation_service
 from app.services import spectator_session as spectator_service
 from app.services import staff_settings as staff_settings_service
+from app.services import user_preferences as user_preferences_service
 
 
 @router.post("/api/minecraft/warn")
@@ -1528,6 +1539,47 @@ async def staff_get_valid_tags(user_info: dict = Depends(require_permission("wat
 # Staff Feature Visibility Check
 # ============================================
 
+@router.get("/api/preferences")
+async def staff_get_preferences(user_info: dict = Depends(require_staff)):
+    """Get current user's UI preferences."""
+    staff_email = user_info.get("email", "")
+    return JSONResponse({
+        "status": "ok",
+        "preferences": user_preferences_service.get_preferences(staff_email),
+    })
+
+
+@router.put("/api/preferences")
+async def staff_update_preferences(request: Request, user_info: dict = Depends(require_staff)):
+    """Update current user's UI preferences."""
+    staff_email = user_info.get("email", "")
+    body = await request.json()
+    patch = body.get("preferences", body) if isinstance(body, dict) else {}
+    if not isinstance(patch, dict):
+        return JSONResponse(
+            {"status": "error", "error": "preferences must be an object"},
+            status_code=400,
+        )
+
+    try:
+        updated = user_preferences_service.set_preferences(
+            email=staff_email,
+            patch=patch,
+            updated_by="self",
+        )
+        return JSONResponse({"status": "ok", "preferences": updated})
+    except user_preferences_service.PreferenceValidationError as exc:
+        return JSONResponse(
+            {"status": "error", "error": "invalid preferences", "fields": exc.errors},
+            status_code=400,
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).error("Failed to update staff preferences: %s", exc)
+        return JSONResponse(
+            {"status": "error", "error": "failed to persist preferences"},
+            status_code=500,
+        )
+
 @router.get("/api/my-settings")
 async def staff_get_my_settings(user_info: dict = Depends(require_staff)):
     """Get current staff member's permissions and role info."""
@@ -1551,6 +1603,7 @@ async def staff_get_my_settings(user_info: dict = Depends(require_staff)):
         "role": role,
         "permissions": user_permissions,
         "visible_modules": visible_modules,
+        "preferences": user_preferences_service.get_preferences(staff_email),
         # Backwards compatibility
         "hidden_features": staff_settings_service.get_staff_settings(staff_email).hidden_features,
     })

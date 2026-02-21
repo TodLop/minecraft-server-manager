@@ -20,7 +20,7 @@ PLAYER_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_]{3,16}$')
 def extract_username(display_name: str) -> str:
     """
     Extract the actual Minecraft username from a display name that may include
-    titles/prefixes like [Dragon_Rider]player_name or [VIP]player_name
+    titles/prefixes like [Dragon_Rider]hjjang17 or [VIP]player_name
 
     Patterns handled:
     - [Title]username -> username

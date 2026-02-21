@@ -1,33 +1,32 @@
-# Environment and credentials
+# === Credentials & Secrets ===
 .env
+credentials.json
+client_secret*.json
+token.json
 config_files/
 
-# Runtime data
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# === Project Data ===
 data/
 logs/
 *.log
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pytest_cache/
-.venv/
-venv/
+# === User Preferences (contain user data) ===
+user_prefs_*.json
 
-# Java build artifacts
-**/target/
-*.jar
-dependency-reduced-pom.xml
-
-# IDE
-.idea/
-.vscode/
-*.iml
-
-# OS
+# === OS ===
 .DS_Store
 Thumbs.db
 
-# Private custom plugins (local-only)
-custom_plugins/
+# === Custom plugin build/IDE artifacts ===
+custom_plugins/**/target/
+custom_plugins/**/.settings/
+custom_plugins/**/.project
+custom_plugins/**/.classpath
+*.class
+*.jar
